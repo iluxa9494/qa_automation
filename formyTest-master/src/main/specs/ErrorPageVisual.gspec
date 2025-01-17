@@ -1,0 +1,22 @@
+@objects
+    firstTitle          xpath           //h1
+    secondTitle         xpath           //div/div/p
+    thirdTitle          xpath           //body/div/p
+    dialogWindow        xpath           //div[@class='dialog']
+
+= Body =
+    firstTitle:
+        visible
+        image file pagedumpError/objects/firstTitle.png, error 1%
+
+    secondTitle:
+        visible
+        image file pagedumpError/objects/secondTitle.png, error 1%
+
+    thirdTitle:
+        visible
+        image file pagedumpError/objects/thirdTitle.png, error 1%
+
+    dialogWindow:
+        visible
+        image file pagedumpError/objects/dialogWindow.png, error 1%

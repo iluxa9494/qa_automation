@@ -1,0 +1,62 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    fullNameTitle                   xpath           //label[text()='Full name']
+    fullNameInput                   id              name
+    button                          id              button
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpKeyPress/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above fullNameTitle 104 px
+        above fullNameInput 136 px
+        above button 214 px
+
+    logo:
+        image file pagedumpKeyPress/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpKeyPress/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpKeyPress/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpKeyPress/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above fullNameTitle 32 px
+        above fullNameInput 64 px
+        above button 142 px
+        css box-sizing is "border-box"
+
+    fullNameTitle:
+        visible
+        image file pagedumpKeyPress/objects/fullNameTitle.png, error 1%
+        below pageTitle 32 px
+        above fullNameInput 8 px
+        above button 86 px
+        css box-sizing is "border-box"
+
+    fullNameInput:
+        visible
+        image file pagedumpKeyPress/objects/fullNameInput.png, error 1%
+        below fullNameTitle 8 px
+        above button 40 px
+        css box-sizing is "border-box"
+
+    button:
+        visible
+        image file pagedumpKeyPress/objects/button.png, error 1%
+        below fullNameInput 40 px
+        below fullNameTitle 86 px
+        css box-sizing is "border-box"

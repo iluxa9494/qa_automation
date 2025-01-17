@@ -1,0 +1,62 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    imageElement                    id              image
+    boxElement                      id              box
+    boxTitle                        xpath           //p
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpDragAndDrop/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above imageElement 90 px
+        above boxElement 90 px
+        above boxTitle 99 px
+
+    logo:
+        image file pagedumpDragAndDrop/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpDragAndDrop/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpDragAndDrop/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpDragAndDrop/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above imageElement 18 px
+        above boxElement 18 px
+        above boxTitle 27 px
+        css box-sizing is "border-box"
+
+    imageElement:
+        visible
+        below pageTitle 18 px
+        left-of boxElement 20 px
+        left-of boxTitle 29 px
+        css box-sizing is "border-box"
+
+    boxElement:
+        visible
+        image file pagedumpDragAndDrop/objects/boxElement.png, error 1%
+        right-of imageElement 20 px
+        below pageTitle 18 px
+        css box-sizing is "border-box"
+
+    boxTitle:
+        visible
+        image file pagedumpDragAndDrop/objects/boxTitle.png, error 1%
+        right-of imageElement 29 px
+        inside boxElement 8 to 9 px top left
+        below pageTitle 27 px
+        css box-sizing is "border-box"

@@ -1,0 +1,51 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    disabledInput                   id              disabledInput
+    enabledInput                    id              input
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpEnabled/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above disabledInput 80 px
+        above enabledInput 134 px
+
+    logo:
+        image file pagedumpEnabled/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpEnabled/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpEnabled/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpEnabled/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above disabledInput 8 px
+        above enabledInput 62 px
+        css box-sizing is "border-box"
+
+    disabledInput:
+        visible
+        image file pagedumpEnabled/objects/disabledInput.png, error 1%
+        below pageTitle 8 px
+        above enabledInput 16 px
+        css box-sizing is "border-box"
+
+    enabledInput:
+        visible
+        image file pagedumpEnabled/objects/enabledInput.png, error 1%
+        below pageTitle 62 px
+        below disabledInput 16 px
+        css box-sizing is "border-box"

@@ -1,0 +1,166 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    primaryButton                   xpath           //button[text()='Primary']
+    successButton                   xpath           //button[text()='Success']
+    infoButton                      xpath           //button[text()='Info']
+    warningButton                   xpath           //button[text()='Warning']
+    dangerButton                    xpath           //button[text()='Danger']
+    linkButton                      xpath           //button[text()='Link']
+    leftButton                      xpath           //button[text()='Left']
+    middleButton                    xpath           //button[text()='Middle']
+    rightButton                     xpath           //button[text()='Right']
+    oneButton                       xpath           //button[text()='1']
+    twoButton                       xpath           //button[text()='2']
+    dropdownButton                  id              btnGroupDrop1
+    firstBtnGroup                   xpath           //div[@aria-label='Basic example']
+    secondBtnGroup                  xpath           //div[@aria-label='Button group with nested dropdown']
+
+= Header =
+    navbar:
+        image file pagedumpButtons/objects/navbar.png, error 1%
+        above primaryButton 24 px
+        above successButton 24 px
+        above infoButton 24 px
+        above warningButton 24 px
+        above dangerButton 24 px
+        above linkButton 24 px
+
+        above leftButton 88 px
+        above middleButton 88 px
+        above rightButton 88 px
+
+        above oneButton 152 px
+        above twoButton 152 px
+        above dropdownButton 152 px
+
+    logo:
+        image file pagedumpButtons/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpButtons/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpButtons/objects/componentsDropdown.png, error 1%
+
+= Body =
+    primaryButton:
+        visible
+        image file pagedumpButtons/objects/primaryButton.png, error 1%
+        below navbar 24 px
+        left-of successButton 4 px
+        above leftButton 16 px
+        above middleButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    successButton:
+        visible
+        image file pagedumpButtons/objects/successButton.png, error 1%
+        below navbar 24 px
+        right-of primaryButton 4 px
+        left-of infoButton 5 px
+        above rightButton 16 px
+        above middleButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    infoButton:
+        visible
+        image file pagedumpButtons/objects/infoButton.png, error 1%
+        below navbar 24 px
+        right-of successButton 5 px
+        left-of warningButton 5 px
+        above rightButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    warningButton:
+        visible
+        image file pagedumpButtons/objects/warningButton.png, error 1%
+        below navbar 24 px
+        right-of infoButton 5 px
+        left-of dangerButton 4 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    dangerButton:
+        visible
+        image file pagedumpButtons/objects/dangerButton.png, error 1%
+        below navbar 24 px
+        right-of warningButton 4 px
+        left-of linkButton 5 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    linkButton:
+        visible
+        image file pagedumpButtons/objects/linkButton.png, error 1%
+        below navbar 24 px
+        right-of dangerButton 5 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    leftButton:
+        visible
+        image file pagedumpButtons/objects/leftButton.png, error 1%
+        below primaryButton 16 px
+        above oneButton 16 px
+        above twoButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    middleButton:
+        visible
+        image file pagedumpButtons/objects/middleButton.png, error 1%
+        below primaryButton 16 px
+        below successButton 16 px
+        above twoButton 16 px
+        above dropdownButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    rightButton:
+        visible
+        image file pagedumpButtons/objects/rightButton.png, error 1%
+        below successButton 16 px
+        below infoButton 16 px
+        above dropdownButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    oneButton:
+        visible
+        image file pagedumpButtons/objects/oneButton.png, error 1%
+        below leftButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    twoButton:
+        visible
+        image file pagedumpButtons/objects/twoButton.png, error 1%
+        below leftButton 16 px
+        below middleButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    dropdownButton:
+        visible
+        image file pagedumpButtons/objects/dropdownButton.png, error 1%
+        below middleButton 16 px
+        below rightButton 16 px
+        css cursor is "pointer"
+        css box-sizing is "border-box"
+
+    firstBtnGroup:
+        visible
+        image file pagedumpButtons/objects/firstBtnGroup.png, error 1%
+
+    secondBtnGroup:
+        visible
+        image file pagedumpButtons/objects/secondBtnGroup.png, error 1%

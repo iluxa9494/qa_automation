@@ -1,0 +1,61 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    firstCheckbox                   id              checkbox-1
+    secondCheckbox                  id              checkbox-2
+    thirdCheckbox                   id              checkbox-3
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpCheckbox/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above firstCheckbox 85 px
+        above secondCheckbox 133 px
+        above thirdCheckbox 181 px
+
+    logo:
+        image file pagedumpCheckbox/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpCheckbox/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpCheckbox/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+      visible
+      image file pagedumpCheckbox/objects/pageTitle.png, error 1%
+      above firstCheckbox 13 px
+      above secondCheckbox 61 px
+      above thirdCheckbox 109 px
+      css box-sizing is "border-box"
+
+    firstCheckbox:
+      visible
+      image file pagedumpCheckbox/objects/firstCheckbox.png, error 1%
+      below pageTitle 13 px
+      above secondCheckbox 35 px
+      above thirdCheckbox 83 px
+      css box-sizing is "border-box"
+
+    secondCheckbox:
+      visible
+      image file pagedumpCheckbox/objects/secondCheckbox.png, error 1%
+      below firstCheckbox 35 px
+      above thirdCheckbox 35 px
+      css box-sizing is "border-box"
+
+    thirdCheckbox:
+      visible
+      image file pagedumpCheckbox/objects/thirdCheckbox.png, error 1%
+      below firstCheckbox 83 px
+      below secondCheckbox 35 px
+      css box-sizing is "border-box"

@@ -1,0 +1,48 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    openNewTab                      id              new-tab-button
+    openAlert                       id              alert-button
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpSwitchWindow/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above openNewTab 80 px
+        above openAlert 134 px
+
+    logo:
+        image file pagedumpSwitchWindow/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpSwitchWindow/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpSwitchWindow/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpSwitchWindow/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above openNewTab 8 px
+        above openAlert 62 px
+
+    openNewTab:
+        visible
+        image file pagedumpSwitchWindow/objects/openNewTab.png, error 1%
+        below pageTitle 8 px
+        above openAlert 16 px
+
+    openAlert:
+        visible
+        image file pagedumpSwitchWindow/objects/openAlert.png, error 1%
+        below pageTitle 62 px
+        below openNewTab 16 px
