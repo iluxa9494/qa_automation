@@ -3,13 +3,11 @@ Thumbs.db
 .idea/
 *.iml
 *.iws
-
 target/
 out/
 build/
 *.log
 *.tmp
-
 allure-results/
 galen-reports/
 report/
