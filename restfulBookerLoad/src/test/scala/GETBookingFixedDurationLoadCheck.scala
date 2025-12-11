@@ -7,30 +7,29 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class GETBookingFixedDurationLoadCheck extends Simulation {
-  //http conf
-  val httpConf = http.
-    baseUrl("https://restful-booker.herokuapp.com")
-    .proxy(Proxy("localhost", port = 8888)) //using fiddler to check HTTP traffic
-    .header("Accept", value = "application/json")
 
-  def getBookingRequest() = {
-    exec(http("get booking request")
-      .get("/booking/1")
-      .check(status.in(200 to 304)))
-  }
+  // HTTP config
+  val httpConf = http
+    .baseUrl("https://restful-booker.herokuapp.com")
+    .header("Accept", "application/json")
+
+  def getBookingRequest() =
+    exec(
+      http("get booking request")
+        .get("/booking/1")
+        .check(status.in(200 to 304))
+    )
 
   val scn = scenario("get booking requests fixed duration load")
-    .forever() {
+    .forever {
       exec(getBookingRequest())
     }
 
   setUp(
     scn.inject(
-      nothingFor(5),
+      nothingFor(5.seconds),
       atOnceUsers(10),
-      rampUsers(50) during (30 seconds)
-    )
-      .protocols(httpConf)
-  )
-    .maxDuration(1 minute)
+      rampUsers(50) during (30.seconds)
+    ).protocols(httpConf)
+  ).maxDuration(1.minute)
 }
