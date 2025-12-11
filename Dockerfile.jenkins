@@ -1,9 +1,12 @@
 FROM jenkins/jenkins:lts-jdk17
 
+# Работаем как root, чтобы поставить docker и docker-compose
 USER root
 
 RUN apt-get update && \
     apt-get install -y docker.io docker-compose && \
     rm -rf /var/lib/apt/lists/*
 
-USER jenkins
+# ВАЖНО: не возвращаемся на USER jenkins —
+# Jenkins внутри этого образа будет работать под root.
+# Для локального демо это ок.
