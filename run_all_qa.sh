@@ -3,6 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# ARM-Mac: используем seleniarm вместо selenium/standalone-chrome
+export SELENIUM_BASE_IMAGE=seleniarm/standalone-chromium:latest
+
 mkdir -p reports/formy reports/databaseUsage reports/gatling
 
 echo "▶ Building qa-tests image (Docker)..."
