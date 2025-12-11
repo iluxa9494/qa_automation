@@ -3,21 +3,31 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# ARM-Mac: используем seleniarm вместо selenium/standalone-chrome
-export SELENIUM_BASE_IMAGE=seleniarm/standalone-chromium:latest
-
 mkdir -p reports/formy reports/databaseUsage reports/gatling
 
+docker_compose() {
+  # Сначала пробуем Docker Compose v2: `docker compose`
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  # Если нет — пробуем классический бинарник `docker-compose`
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose "$@"
+  else
+    echo "❌ Docker Compose не установлен (ни 'docker compose', ни 'docker-compose' не найдены)." >&2
+    exit 1
+  fi
+}
+
 echo "▶ Building qa-tests image (Docker)..."
-docker compose build
+docker_compose build
 
 echo "▶ Running UI tests (formyProject)..."
-docker compose run --rm formy-tests
+docker_compose run --rm formy-tests
 
 echo "▶ Running DB tests (databaseUsage)..."
-docker compose run --rm database-tests
+docker_compose run --rm database-tests
 
 echo "▶ Running load tests (restfulBookerLoad)..."
-docker compose run --rm restfulbooker-load
+docker_compose run --rm restfulbooker-load
 
 echo "✔ All QA test suites finished. Reports are in ./reports/"
