@@ -40,7 +40,6 @@ hs_err_pid*
 replay_pid*
 
 ### TEST REPORTS / QA ###
-allure-results/
 galen-reports/
 report/
 reports/
