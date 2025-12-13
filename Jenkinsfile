@@ -8,7 +8,6 @@ pipeline {
 
     options {
         timestamps()
-        // ansiColor('xterm')
     }
 
     environment {
@@ -35,18 +34,12 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Nested Data Reporting — JSON (Nested Data Reporting plugin)
-            // ВАЖНО: name без пробелов/скобок + стабильный id, чтобы URL не разваливался
             publishReport(
-                name: 'QA_Summary_Nested',
+                name: 'QA Summary (Nested)',
                 displayType: 'ALWAYS',
-                provider: json(
-                    id: 'qa_summary',
-                    pattern: 'reports/nested/data.json'
-                )
+                provider: json(pattern: 'reports/nested/data.json')
             )
 
-            // UI-тесты (Formy) — Cucumber HTML (папка + index.html)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
@@ -56,7 +49,6 @@ pipeline {
                 reportName:            'UI tests (Formy)'
             ])
 
-            // DB-тесты — Cucumber HTML (ФАЙЛ)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
@@ -66,7 +58,6 @@ pipeline {
                 reportName:            'DB tests'
             ])
 
-            // Нагрузочные тесты — Gatling HTML
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
