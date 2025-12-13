@@ -35,7 +35,7 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Nested Data Reporting (JSON) — Jenkins plugin nested-data-reporting
+            // ✅ Nested Data Reporting — JSON формата плагина
             publishReport(
                 name: 'QA Summary (Nested)',
                 displayType: 'ALWAYS',
@@ -52,7 +52,7 @@ pipeline {
                 reportName:            'UI tests (Formy)'
             ])
 
-            // DB-тесты — Cucumber HTML (ФАЙЛ!)
+            // DB-тесты — Cucumber HTML (ФАЙЛ)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,

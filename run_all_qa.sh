@@ -33,8 +33,6 @@ echo "▶ Preparing Gatling report for Jenkins (stable 'latest' folder)..."
 GATLING_DIR="reports/gatling"
 LATEST_DIR="$GATLING_DIR/latest"
 
-# ВНИМАНИЕ: у тебя lastRun.txt должен оказываться в reports/gatling/lastRun.txt
-# (обычно его создаёт Gatling Maven plugin). Если его нет — fallback на "самую свежую директорию".
 LAST_RUN_DIR_NAME=""
 if [[ -f "$GATLING_DIR/lastRun.txt" ]]; then
   LAST_RUN_DIR_NAME="$(tr -d '\r\n' < "$GATLING_DIR/lastRun.txt")"
@@ -43,7 +41,6 @@ fi
 if [[ -n "$LAST_RUN_DIR_NAME" && -d "$GATLING_DIR/$LAST_RUN_DIR_NAME" ]]; then
   LAST_RUN_DIR_PATH="$GATLING_DIR/$LAST_RUN_DIR_NAME"
 else
-  # fallback: берём последнюю по времени директорию
   LAST_RUN_DIR_PATH="$(ls -1dt "$GATLING_DIR"/*/ 2>/dev/null | head -n 1 || true)"
   LAST_RUN_DIR_PATH="${LAST_RUN_DIR_PATH%/}"
 fi
@@ -51,7 +48,6 @@ fi
 if [[ -n "${LAST_RUN_DIR_PATH:-}" && -d "$LAST_RUN_DIR_PATH" ]]; then
   rm -rf "$LATEST_DIR"
   mkdir -p "$LATEST_DIR"
-  # Копируем содержимое последнего прогона в стабильную папку latest
   cp -a "$LAST_RUN_DIR_PATH"/. "$LATEST_DIR"/
   echo "   ✔ Latest Gatling report prepared: $LATEST_DIR/index.html"
 else
@@ -59,21 +55,16 @@ else
 fi
 
 echo "▶ Generating Nested Data report (reports/nested/data.json)..."
+mkdir -p reports/nested
 
-# Пути к входным данным (совпадают с docker-compose'ом)
-export CUCUMBER_UI_JSON="reports/formy/cucumber.json"
-export CUCUMBER_DB_JSON="reports/databaseUsage/cucumber.json"
-
-# Gatling: предпочитаем чистый JSON (global_stats.json)
-export GATLING_GLOBAL_STATS_JSON="reports/gatling/latest/js/global_stats.json"
-
-# Куда писать итоговый json для Jenkins nested-data-reporting plugin
-export NESTED_OUT_JSON="reports/nested/data.json"
-
-# Генератор на Java (без внешних зависимостей)
-mkdir -p .tmp-nested reports/nested
-
-javac -encoding UTF-8 -d .tmp-nested tools/NestedReportGenerator.java
-java -cp .tmp-nested NestedReportGenerator || echo "⚠ Failed to generate nested data.json (java error) — пайплайн продолжается"
+# ✅ Запускаем Java-генератор через Maven, чтобы подтянулись зависимости (Jackson)
+# Генератор читает:
+#   databaseUsage/target/cucumber/cucumber.json
+#   formyProject/target/cucumber/cucumber.json
+# и пишет:
+#   reports/nested/data.json
+mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile \
+  exec:java -Dexec.mainClass=tools.NestedReportGenerator \
+  || echo "⚠ Failed to generate nested data.json (maven/java error) — пайплайн продолжается"
 
 echo "✔ All QA test suites finished. Reports are in ./reports/"

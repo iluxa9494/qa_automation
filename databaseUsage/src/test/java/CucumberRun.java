@@ -8,7 +8,9 @@ import org.junit.runner.RunWith;
         glue = {"Steps"},
         plugin = {
                 "pretty",
-                "html:target/cucumber-html-report",
+                // HTML репорт должен быть ФАЙЛОМ
+                "html:target/cucumber.html",
+                // JSON для агрегации/дженкинса и nested report
                 "json:target/cucumber/cucumber.json"
         },
         monochrome = true

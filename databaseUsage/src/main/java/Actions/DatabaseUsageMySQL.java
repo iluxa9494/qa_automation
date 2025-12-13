@@ -6,69 +6,121 @@ import org.testng.Assert;
 import java.sql.*;
 
 public class DatabaseUsageMySQL {
+
     public static Connection con;
 
+    private static String envOrDefault(String key, String def) {
+        String v = System.getenv(key);
+        return (v == null || v.trim().isEmpty()) ? def : v.trim();
+    }
+
     public void connectToMySQL() throws ClassNotFoundException, SQLException {
-        Class.forName("com.mysql.jdbc.Driver");
+        // ✅ для MySQL 8 / Connector/J 8:
+        // com.mysql.jdbc.Driver устарел -> com.mysql.cj.jdbc.Driver
+        Class.forName("com.mysql.cj.jdbc.Driver");
         System.out.println("Driver loaded");
-        con = DriverManager.getConnection("jdbc:mysql://localhost:3306/world", "root", "11111111");
-        System.out.println("Connected to MySQL DB");
+
+        String url  = envOrDefault("MYSQL_URL", "jdbc:mysql://localhost:3306/test");
+        String user = envOrDefault("MYSQL_USER", "test");
+        String pass = envOrDefault("MYSQL_PASSWORD", "test");
+
+        // ✅ на всякий случай добавим параметры (не ломают, но помогают)
+        if (!url.contains("?")) {
+            url = url + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+        }
+
+        con = DriverManager.getConnection(url, user, pass);
+        System.out.println("Connected to MySQL DB: " + url);
     }
 
     public void closeConnection() throws SQLException {
-        con.close();
+        if (con != null) con.close();
         System.out.println("Connection has closed");
     }
 
     public void createCompareDBDataCheck(DataTable table) throws SQLException {
-        java.util.List<String> elements = table.asList();
-        Statement statement = con.createStatement();
-        int id = Integer.parseInt(elements.get(1));
-        int population = Integer.parseInt(elements.get(9));
-        statement.executeUpdate("insert into city values (" + id + ",'" + elements.get(3) + "'," +
-                " '" + elements.get(5) + "', '" + elements.get(7) + "', " + population + ")");
+        java.util.List<String> e = table.asList();
+        int id = Integer.parseInt(e.get(1));
+        int population = Integer.parseInt(e.get(9));
+
+        // ✅ безопаснее через PreparedStatement (и не зависит от кавычек)
+        String sql = "INSERT INTO city (ID, Name, CountryCode, District, Population) VALUES (?, ?, ?, ?, ?)";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            ps.setString(2, e.get(3));
+            ps.setString(3, e.get(5));
+            ps.setString(4, e.get(7));
+            ps.setInt(5, population);
+            ps.executeUpdate();
+        }
         System.out.println("PASSED");
     }
 
     public void getCompareDBDataCheck(DataTable table) throws SQLException {
-        java.util.List<String> elements = table.asList();
-        int idCheck = Integer.parseInt(elements.get(1));
-        int populationCheck = Integer.parseInt(elements.get(9));
-        Statement statement = con.createStatement();
-        ResultSet resultSet = statement.executeQuery("select * from city where " + elements.get(0) + " = " + idCheck + "");
-        while (resultSet.next()) {
-            int id = resultSet.getInt("ID");
-            String name = resultSet.getString("Name");
-            String countryCode = resultSet.getString("CountryCode");
-            String district = resultSet.getString("District");
-            int population = resultSet.getInt("Population");
-            check(id == idCheck && name.equals(elements.get(3)) && countryCode.equals(elements.get(5)) &&
-                    district.equals(elements.get(7)) && population == populationCheck);
+        java.util.List<String> e = table.asList();
+        int idCheck = Integer.parseInt(e.get(1));
+        int populationCheck = Integer.parseInt(e.get(9));
+
+        String idFieldName = e.get(0); // обычно "ID"
+
+        String sql = "SELECT ID, Name, CountryCode, District, Population FROM city WHERE " + idFieldName + " = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, idCheck);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                boolean found = false;
+                while (rs.next()) {
+                    found = true;
+                    int id = rs.getInt("ID");
+                    String name = rs.getString("Name");
+                    String countryCode = rs.getString("CountryCode");
+                    String district = rs.getString("District");
+                    int population = rs.getInt("Population");
+
+                    check(id == idCheck
+                            && name.equals(e.get(3))
+                            && countryCode.equals(e.get(5))
+                            && district.equals(e.get(7))
+                            && population == populationCheck
+                    );
+                }
+                check(found);
+            }
         }
     }
 
     public void updateCompareDBDataCheck(DataTable table) throws SQLException {
-        java.util.List<String> elements = table.asList();
-        int idCheck = Integer.parseInt(elements.get(1));
-        Statement statement = con.createStatement();
-        statement.executeUpdate("update city set " + elements.get(6) + " = '" + elements.get(7) + "' where " +
-                elements.get(0) + " = " + idCheck + "");
+        java.util.List<String> e = table.asList();
+        int idCheck = Integer.parseInt(e.get(1));
+
+        String idFieldName = e.get(0);    // ID
+        String updateField = e.get(6);    // например District
+        String updateValue = e.get(7);    // новое значение
+
+        String sql = "UPDATE city SET " + updateField + " = ? WHERE " + idFieldName + " = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, updateValue);
+            ps.setInt(2, idCheck);
+            ps.executeUpdate();
+        }
         System.out.println("PASSED");
     }
 
     public void deleteCompareDBDataCheck(DataTable table) throws SQLException {
-        java.util.List<String> elements = table.asList();
-        int id = Integer.parseInt(elements.get(1));
-        Statement statement = con.createStatement();
-        statement.execute("delete from city where " + elements.get(0) + " = " + id + "");
+        java.util.List<String> e = table.asList();
+        int id = Integer.parseInt(e.get(1));
+        String idFieldName = e.get(0);
+
+        String sql = "DELETE FROM city WHERE " + idFieldName + " = ?";
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            ps.executeUpdate();
+        }
         System.out.println("PASSED");
     }
 
-    public void check(boolean arg1) {
-        if (arg1) {
-            System.out.println("PASSED");
-        } else {
-            Assert.fail("FAILED");
-        }
+    public void check(boolean ok) {
+        if (ok) System.out.println("PASSED");
+        else Assert.fail("FAILED");
     }
 }

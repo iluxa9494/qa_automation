@@ -11,7 +11,6 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
         <maven.compiler.release>8</maven.compiler.release>
 
         <cucumber.version>6.9.1</cucumber.version>
@@ -19,12 +18,15 @@
         <junit.version>4.13.2</junit.version>
         <testng.version>7.10.2</testng.version>
 
+        <jackson.version>2.17.2</jackson.version>
+
         <maven.surefire.version>3.2.5</maven.surefire.version>
         <maven.compiler.version>3.13.0</maven.compiler.version>
+        <exec.maven.plugin.version>3.3.0</exec.maven.plugin.version>
     </properties>
 
     <dependencies>
-        <!-- Cucumber (без scope=test, т.к. код лежит в src/main/java) -->
+        <!-- Cucumber -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
@@ -48,7 +50,7 @@
             <version>${junit.version}</version>
         </dependency>
 
-        <!-- TestNG (у тебя используется в main-коде) -->
+        <!-- TestNG -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
@@ -66,6 +68,13 @@
             <artifactId>mongo-java-driver</artifactId>
             <version>3.12.8</version>
         </dependency>
+
+        <!-- ✅ Нужно для tools.NestedReportGenerator (ObjectMapper и т.п.) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -80,13 +89,12 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire: фиксируем JUnit provider, иначе выберется TestNGProvider и будет "Tests run: 0" -->
+            <!-- Surefire: форсим JUnit provider -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven.surefire.version}</version>
 
-                <!-- ВАЖНО: форсим JUnit provider -->
                 <dependencies>
                     <dependency>
                         <groupId>org.apache.maven.surefire</groupId>
@@ -102,6 +110,15 @@
                         <include>**/*Runner*.java</include>
                     </includes>
                 </configuration>
+            </plugin>
+
+            <!-- ✅ Чтобы можно было запускать генератор так:
+                 mvn -f databaseUsage/pom.xml test-compile exec:java -Dexec.mainClass=tools.NestedReportGenerator
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>${exec.maven.plugin.version}</version>
             </plugin>
         </plugins>
     </build>

@@ -4,14 +4,13 @@ import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
 @CucumberOptions(
-        // Файлы лежат в formyProject/src/test/features/*.feature
         features = "src/test/features",
         glue = {"Steps"},
         plugin = {
                 "pretty",
-                // HTML репорт для Jenkins HTML Publisher
-                "html:target/cucumber-html-report",
-                // JSON для агрегации в Nested Data Report
+                // ✅ HTML plugin должен писать в ФАЙЛ, а не в папку
+                "html:target/cucumber.html",
+                // ✅ JSON для Nested Data
                 "json:target/cucumber/cucumber.json"
         },
         monochrome = true
