@@ -1,3 +1,5 @@
+# Dockerfile
+
 ARG SELENIUM_BASE_IMAGE=seleniarm/standalone-chromium:latest
 FROM ${SELENIUM_BASE_IMAGE}
 
@@ -5,7 +7,6 @@ USER root
 WORKDIR /app
 
 # Java 17 + Maven + Xvfb
-# (default-jdk-headless может оказаться 11/21 в зависимости от базы, поэтому фиксируем 17)
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
        xvfb \
@@ -13,8 +14,14 @@ RUN apt-get update \
        openjdk-17-jdk-headless \
   && rm -rf /var/lib/apt/lists/*
 
-ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
+# ✅ Автоматически выставляем корректный JAVA_HOME (arm64/amd64) и PATH
+RUN set -eux; \
+    JAVA_BIN="$(readlink -f "$(command -v java)")"; \
+    JAVA_HOME_DIR="$(dirname "$(dirname "$JAVA_BIN")")"; \
+    echo "Detected JAVA_HOME=$JAVA_HOME_DIR"; \
+    echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
+    echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
+    echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
 # Чтобы headless UI был стабильнее
 ENV DISPLAY=:99
