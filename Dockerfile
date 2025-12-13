@@ -23,6 +23,9 @@ RUN set -eux; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
 # Чтобы headless UI был стабильнее
 ENV DISPLAY=:99
 

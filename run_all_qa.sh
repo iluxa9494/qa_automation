@@ -17,7 +17,6 @@ docker_compose() {
   fi
 }
 
-# ---- helpers: run container w/o bind-mounts and copy /reports out ----
 copy_reports_from_container() {
   local container_name="$1"
   local src_path="${2:-/reports}"
@@ -26,7 +25,6 @@ copy_reports_from_container() {
   if docker ps -a --format '{{.Names}}' | grep -qx "$container_name"; then
     echo "▶ Copying reports from $container_name:$src_path -> ./$dst_dir ..."
     mkdir -p "$dst_dir"
-    # Важно: docker cp умеет копировать директорию целиком
     docker cp "${container_name}:${src_path}/." "${dst_dir}/" 2>/dev/null || true
     echo "▶ Removing container $container_name ..."
     docker rm -f "$container_name" >/dev/null 2>&1 || true
@@ -40,15 +38,14 @@ run_service_keep_container() {
   local container_name="$2"
 
   echo "▶ Running: $service (container: $container_name) ..."
-  # На всякий: если остался от прошлого запуска
+
   docker rm -f "$container_name" >/dev/null 2>&1 || true
 
   set +e
-  docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
+  docker_compose run --name "$container_name" "$service"
   local exit_code=$?
   set -e
 
-  # В любом случае пытаемся вытащить /reports
   copy_reports_from_container "$container_name" "/reports" "reports"
 
   if [[ $exit_code -ne 0 ]]; then
@@ -77,11 +74,6 @@ echo "▶ Checking expected report files..."
 echo "▶ Generating Nested Data report (reports/nested/data.json)..."
 mkdir -p reports/nested
 
-# Генератор читает:
-#   reports/databaseUsage/cucumber.json
-#   reports/formy/cucumber.json
-# и пишет:
-#   reports/nested/data.json
 mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile \
   exec:java -Dexec.mainClass=tools.NestedReportGenerator -Dexec.classpathScope=test \
   || echo "⚠ Nested generator failed — продолжаем"

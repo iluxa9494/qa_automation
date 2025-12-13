@@ -27,6 +27,10 @@ services:
         export JAVA_HOME=\"$(readlink -f /usr/bin/java | sed 's|/bin/java$||')\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
 
+        echo \"JAVA_HOME=$JAVA_HOME\";
+        java -version;
+        javac -version;
+
         mkdir -p /reports/formy/cucumber-html-report /reports/formy/surefire;
         Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
 
@@ -36,8 +40,6 @@ services:
           -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report' \
           -Dsurefire.reportsDirectory=/reports/formy/surefire
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
 
   mongo:
@@ -63,8 +65,6 @@ services:
       MYSQL_DATABASE: test
       MYSQL_USER: test
       MYSQL_PASSWORD: test
-    # если снова будет "exited (1)" — просто убери command ниже (как в docker-compose.db.yml)
-    command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -95,6 +95,10 @@ services:
         export JAVA_HOME=\"$(readlink -f /usr/bin/java | sed 's|/bin/java$||')\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
 
+        echo \"JAVA_HOME=$JAVA_HOME\";
+        java -version;
+        javac -version;
+
         mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
         cd /app/databaseUsage;
 
@@ -102,8 +106,6 @@ services:
           -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html' \
           -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
 
   restfulbooker-load:
@@ -120,6 +122,10 @@ services:
         export JAVA_HOME=\"$(readlink -f /usr/bin/java | sed 's|/bin/java$||')\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
 
+        echo \"JAVA_HOME=$JAVA_HOME\";
+        java -version;
+        javac -version;
+
         mkdir -p /reports/gatling;
         cd /app/restfulBookerLoad;
         mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
@@ -134,6 +140,4 @@ services:
           echo \"⚠ Gatling report directory not found in /reports/gatling — latest не подготовлен\";
         fi
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
