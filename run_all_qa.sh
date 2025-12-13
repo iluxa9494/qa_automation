@@ -17,17 +17,57 @@ docker_compose() {
   fi
 }
 
+# ---- helpers: run container w/o bind-mounts and copy /reports out ----
+copy_reports_from_container() {
+  local container_name="$1"
+  local src_path="${2:-/reports}"
+  local dst_dir="${3:-reports}"
+
+  if docker ps -a --format '{{.Names}}' | grep -qx "$container_name"; then
+    echo "▶ Copying reports from $container_name:$src_path -> ./$dst_dir ..."
+    mkdir -p "$dst_dir"
+    # Важно: docker cp умеет копировать директорию целиком
+    docker cp "${container_name}:${src_path}/." "${dst_dir}/" 2>/dev/null || true
+    echo "▶ Removing container $container_name ..."
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+  else
+    echo "⚠ Container $container_name not found — nothing to copy"
+  fi
+}
+
+run_service_keep_container() {
+  local service="$1"
+  local container_name="$2"
+
+  echo "▶ Running: $service (container: $container_name) ..."
+  # На всякий: если остался от прошлого запуска
+  docker rm -f "$container_name" >/dev/null 2>&1 || true
+
+  set +e
+  docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
+  local exit_code=$?
+  set -e
+
+  # В любом случае пытаемся вытащить /reports
+  copy_reports_from_container "$container_name" "/reports" "reports"
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "⚠ $service failed (exit=$exit_code) — продолжаем"
+  fi
+  return 0
+}
+
 echo "▶ Building qa-tests image (Docker)..."
 docker_compose build || echo "⚠ Docker build failed — продолжаем"
 
-echo "▶ Running UI tests (Formy)..."
-docker_compose run --rm formy-tests || echo "⚠ UI tests failed — продолжаем"
+# ---------------- UI (Formy) ----------------
+run_service_keep_container "formy-tests" "qa-formy-tests"
 
-echo "▶ Running DB tests (DatabaseUsage)..."
-docker_compose run --rm database-tests || echo "⚠ DB tests failed — продолжаем"
+# ---------------- DB (DatabaseUsage) ----------------
+run_service_keep_container "database-tests" "qa-database-tests"
 
-echo "▶ Running load tests (Gatling)..."
-docker_compose run --rm restfulbooker-load || echo "⚠ Load tests failed — продолжаем"
+# ---------------- Load (Gatling) ----------------
+run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker"
 
 echo "▶ Checking expected report files..."
 [[ -f reports/formy/cucumber.json ]] && echo "   ✔ reports/formy/cucumber.json" || echo "⚠ reports/formy/cucumber.json NOT found"

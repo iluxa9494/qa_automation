@@ -37,8 +37,6 @@ services:
           -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report' \
           -Dsurefire.reportsDirectory=/reports/formy/surefire
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
 
   mongo:
@@ -64,8 +62,7 @@ services:
       MYSQL_DATABASE: test
       MYSQL_USER: test
       MYSQL_PASSWORD: test
-    # ⚠ Если на твоей версии MySQL это ломает старт — убери как в docker-compose.db.yml
-    command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
+    # ✅ ВАЖНО: убрали default-authentication-plugin, чтобы MySQL не падал на старте
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
@@ -103,8 +100,6 @@ services:
           -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html' \
           -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
 
   restfulbooker-load:
@@ -136,6 +131,4 @@ services:
           echo \"⚠ Gatling report directory not found in /reports/gatling — latest не подготовлен\";
         fi
       "
-    volumes:
-      - ./reports:/reports
     restart: "no"
