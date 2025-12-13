@@ -269,7 +269,7 @@ var no = function (a, b, c) { return false; };
 var identity = function (_) { return _; };
 
 /**
- * Generate a static keys string from compiler modules.
+ * e a static keys string from compiler modules.
  */
 function genStaticKeys (modules) {
   return modules.reduce(function (keys, m) {
@@ -578,7 +578,7 @@ if (typeof Set !== 'undefined' && isNative(Set)) {
 
 var warn = noop;
 var tip = noop;
-var generateComponentTrace = (noop); // work around flow check
+var eComponentTrace = (noop); // work around flow check
 var formatComponentName = (noop);
 
 {

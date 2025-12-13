@@ -5,6 +5,7 @@ Feature: File upload page
     * Go to "File Upload" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "FileUpload" page
     * Check layout "FileUploadPageVisual" file

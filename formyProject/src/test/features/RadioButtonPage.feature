@@ -6,7 +6,7 @@ Feature: Radio button page
 
 #nonfunctional - layout/visual
   Scenario: Layout test
-    * Make page dump of "RadioButton" page
+#    * Make page dump of "RadioButton" page
     * Check layout "RadioButtonPageVisual" file
     * Close browser
 
@@ -19,6 +19,7 @@ Feature: Radio button page
     * Check radio button "Radio button 2" has a "Radio button 2" title
     * Check radio button "Radio button 3" has a "Radio button 3" title
     * Close browser
+
 #functional
   Scenario: Radio buttons - successful select
     * Check "Radio button 1" radio button has "selected"
@@ -70,17 +71,17 @@ Feature: Radio button page
     * Check "Radio button 2" radio button has "unselected"
     * Check "Radio button 3" radio button has "unselected"
     * Click on the "Radio button 2 radio button" element
-    * Press enter
+    * Press Enter
     * Check "Radio button 1" radio button has "unselected"
     * Check "Radio button 2" radio button has "selected"
     * Check "Radio button 3" radio button has "unselected"
     * Click on the "Radio button 3 radio button" element
-    * Press enter
+    * Press Enter
     * Check "Radio button 1" radio button has "unselected"
     * Check "Radio button 2" radio button has "unselected"
     * Check "Radio button 3" radio button has "selected"
     * Click on the "Radio button 3 radio button" element
-    * Press enter
+    * Press Enter
     * Check "Radio button 1" radio button has "unselected"
     * Check "Radio button 2" radio button has "unselected"
     * Check "Radio button 3" radio button has "selected"
@@ -252,7 +253,7 @@ Feature: Radio button page
     * Click on "Forward" and check "checkbox" page has opened
     * Close browser
 
-  Scenario: Header, Components: Autocomplete referral check
+  Scenario: Header, Components: Datepicker referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |
@@ -336,7 +337,7 @@ Feature: Radio button page
     * Click on "Forward" and check "enabled" page has opened
     * Close browser
 
-  Scenario: Header, Components: Enabled and disabled elements referral check
+  Scenario: Header, Components: File Upload referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |

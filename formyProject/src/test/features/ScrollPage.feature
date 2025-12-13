@@ -5,6 +5,7 @@ Feature: Scroll page
     * Go to "Page Scroll" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Scroll" page
     * Check layout "ScrollPageVisual" file

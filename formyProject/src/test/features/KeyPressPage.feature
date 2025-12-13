@@ -5,6 +5,7 @@ Feature: Key and mouse press page
     * Go to "Key and Mouse Press" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "KeyPress" page
     * Check layout "KeyPressPageVisual" file

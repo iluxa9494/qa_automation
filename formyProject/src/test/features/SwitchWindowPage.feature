@@ -18,6 +18,7 @@ Feature: Switch window page
     * Check "open new tab" button has an "Open new tab" title
     * Check "open alert" button has an "Open alert" title
     * Close browser
+
 #functional
   Scenario: Open new tab and Open alert buttons - enabled, unselected
     * Check "open new tab" has been unselected and enabled
@@ -182,7 +183,7 @@ Feature: Switch window page
     * Click on "Forward" and check "checkbox" page has opened
     * Close browser
 
-  Scenario: Header, Components: Autocomplete referral check
+  Scenario: Header, Components: Datepicker referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |
@@ -266,7 +267,7 @@ Feature: Switch window page
     * Click on "Forward" and check "enabled" page has opened
     * Close browser
 
-  Scenario: Header, Components: Enabled and disabled elements referral check
+  Scenario: Header, Components: File Upload referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |

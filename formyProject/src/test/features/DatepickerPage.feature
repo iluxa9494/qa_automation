@@ -5,6 +5,7 @@ Feature: Datepicker page
     * Go to "Datepicker" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Datepicker" page
     * Check layout "DatepickerPageVisual" file

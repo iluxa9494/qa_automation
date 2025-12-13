@@ -5,6 +5,7 @@ Feature: Dropdown page
     * Go to "Dropdown" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Dropdown" page
     * Check layout "DropdownPageVisual" file

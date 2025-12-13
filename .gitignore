@@ -70,3 +70,11 @@ $RECYCLE.BIN/
 ### LOCAL DEV OVERRIDES ###
 docker-compose.override.local.yml
 docker-compose.dev.yml
+
+# reports should be runtime artifacts, not source-controlled
+reports/**
+!reports/.gitkeep
+
+# build outputs
+**/target/
+**/*.class

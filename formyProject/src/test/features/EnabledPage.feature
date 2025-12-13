@@ -4,7 +4,8 @@ Feature: Enabled and disabled elements page
     * Open browser and go to Formy site
     * Go to "Enabled and disabled elements" page
 
-#nonfunctional - layout/visual
+  @visual
+  #nonfunctional - layout/visual
   Scenario: Layout test
 #    * Make page dump of "Enabled" page
     * Check layout "EnabledPageVisual" file
@@ -13,6 +14,7 @@ Feature: Enabled and disabled elements page
   Scenario: Page title Dropdown - displays correctly
     * Check "Enabled and disabled elements" has page title "Enabled and Disabled elements"
     * Close browser
+
 #functional
 #disabled field
   Scenario: Disabled input - not selected, not enabled
@@ -177,7 +179,7 @@ Feature: Enabled and disabled elements page
     * Click on "Forward" and check "checkbox" page has opened
     * Close browser
 
-  Scenario: Header, Components: Autocomplete referral check
+  Scenario: Header, Components: Datepicker referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |
@@ -240,7 +242,7 @@ Feature: Enabled and disabled elements page
     * Click on "Forward" and check "dropdown" page has opened
     * Close browser
 
-  Scenario: Header, Components: Enabled and disabled elements referral check
+  Scenario: Header, Components: File Upload referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |

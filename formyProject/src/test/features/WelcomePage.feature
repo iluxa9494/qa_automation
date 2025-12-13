@@ -4,16 +4,17 @@ Feature: Welcome to Formy page
     * Open browser and go to Formy site
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Welcome" page
     * Check layout "WelcomePageVisual" file
     * Close browser
 
-  Scenario: Page title Form - displays correctly
+  Scenario: Page title Welcome to Formy - displays correctly
     * Check "Welcome Page" has page title "Welcome to Formy"
     * Close browser
 
-  Scenario: Titles - displays correctly
+  Scenario: Titles - display correctly
     * Check "first title" has a "This is a simple site that has form components that can be used for testing purposes." text
     * Check "second title" has a "Here are the list of all the components" text
     * Close browser
@@ -35,34 +36,48 @@ Feature: Welcome to Formy page
       | Switch Window                 |
       | Complete Web Form             |
     * Close browser
+
 #functional
   Scenario: All components list - go to its page
     * Go to "Autocomplete" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Buttons" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Checkbox" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Datepicker" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Drag and Drop" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Dropdown" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Enabled and disabled elements" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "File Upload" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Key and Mouse Press" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Modal" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Radio Button" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Page Scroll" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Switch Window" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
+
     * Go to "Complete Web Form" page
     * Click on "Backward" and check "Welcome to Formy" page has opened
     * Close browser
@@ -272,7 +287,7 @@ Feature: Welcome to Formy page
     * Click on "Forward" and check "checkbox" page has opened
     * Close browser
 
-  Scenario: Header, Components: Autocomplete referral check
+  Scenario: Header, Components: Datepicker referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |
@@ -356,7 +371,7 @@ Feature: Welcome to Formy page
     * Click on "Forward" and check "enabled" page has opened
     * Close browser
 
-  Scenario: Header, Components: Enabled and disabled elements referral check
+  Scenario: Header, Components: File Upload referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |

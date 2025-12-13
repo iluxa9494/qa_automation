@@ -8,7 +8,7 @@ pipeline {
 
     options {
         timestamps()
-        // ansiColor('xterm')  // оставлено выключенным
+        // ansiColor('xterm')
     }
 
     environment {
@@ -33,12 +33,18 @@ pipeline {
 
     post {
         always {
-            // Сохраняем все артефакты отчётов (для скачивания / архива)
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // UI-тесты (Formy) — Cucumber HTML
+            // ✅ Nested Data Reporting (JSON) — Jenkins plugin nested-data-reporting
+            publishReport(
+                name: 'QA Summary (Nested)',
+                displayType: 'ALWAYS',
+                provider: json(pattern: 'reports/nested/data.json')
+            )
+
+            // UI-тесты (Formy) — Cucumber HTML (папка + index.html)
             publishHTML(target: [
-                allowMissing:          true,   // чтобы билд не падал, если отчёта вдруг нет
+                allowMissing:          true,
                 alwaysLinkToLastBuild: true,
                 keepAll:               true,
                 reportDir:             'reports/formy/cucumber-html-report',
@@ -46,17 +52,17 @@ pipeline {
                 reportName:            'UI tests (Formy)'
             ])
 
-            // DB-тесты — Cucumber HTML
+            // DB-тесты — Cucumber HTML (ФАЙЛ!)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
                 keepAll:               true,
-                reportDir:             'reports/databaseUsage/cucumber-html-report',
-                reportFiles:           'index.html',
+                reportDir:             'reports/databaseUsage',
+                reportFiles:           'cucumber.html',
                 reportName:            'DB tests'
             ])
 
-            // Нагрузочные тесты — Gatling HTML (через стабильный симлинк latest)
+            // Нагрузочные тесты — Gatling HTML
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,

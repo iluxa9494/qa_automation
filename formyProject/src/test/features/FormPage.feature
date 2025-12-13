@@ -4,7 +4,8 @@ Feature: Form page
     * Open browser and go to Formy site
     * Go to "Complete Web Form" page
 
-#nonfunctional - layout/visual
+  @visual
+  #nonfunctional - layout/visual
   Scenario: Layout test
 #    * Make page dump of "Form" page
     * Check layout "FormPageVisual" file
@@ -34,6 +35,7 @@ Feature: Form page
     * Check element experience selector has a Select an option, 0-1, 2-4, 5-9, 10+ titles
     * Check element "input date" has a "mm/dd/yyyy" placeholder
     * Close browser
+
 #functional
   Scenario: First name field - successful data entry
     * Check "first name input" has empty
@@ -1021,7 +1023,7 @@ Feature: Form page
     * Click on "Forward" and check "checkbox" page has opened
     * Close browser
 
-  Scenario: Header, Components: Autocomplete referral check
+  Scenario: Header, Components: Datepicker referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |
@@ -1105,7 +1107,7 @@ Feature: Form page
     * Click on "Forward" and check "enabled" page has opened
     * Close browser
 
-  Scenario: Header, Components: Enabled and disabled elements referral check
+  Scenario: Header, Components: File Upload referral check
     * Click on "Components" and check inside a dropdown list with:
       | Autocomplete                  |
       | Buttons                       |

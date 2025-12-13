@@ -7,26 +7,31 @@ volumes:
   mongo-data:
 
 services:
-
   formy-tests:
     build:
       context: .
       args:
-        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-selenium/standalone-chrome:latest}
+        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
     image: qa-tests
     container_name: qa-formy-tests
     networks:
       - qa-net
     environment:
       FORMY_BASE_URL: ${FORMY_BASE_URL:-https://formy-project.herokuapp.com}
+      DISPLAY: ":99"
     command: >
-      bash -lc "Xvfb :99 -screen 0 1920x1080x24 &
-                cd formyProject &&
-                mvn -B test"
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/formy/cucumber-html-report /reports/formy/surefire;
+        Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+        cd /app/formyProject;
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report'
+          -Dsurefire.reportsDirectory=/reports/formy/surefire
+      "
     volumes:
-      - ./reports/formy:/app/formyProject/target
+      - ./reports:/reports
     restart: "no"
-
 
   mongo:
     image: mongo:7
@@ -35,6 +40,11 @@ services:
       - qa-net
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017/admin", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   mysql:
     image: mysql:8
@@ -49,13 +59,20 @@ services:
     command: ["mysqld", "--default-authentication-plugin=mysql_native_password"]
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   database-tests:
     image: qa-tests
     container_name: qa-database-tests
     depends_on:
-      - mongo
-      - mysql
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
     networks:
       - qa-net
     environment:
@@ -64,10 +81,16 @@ services:
       MYSQL_USER: test
       MYSQL_PASSWORD: test
     command: >
-      bash -lc "cd databaseUsage &&
-                mvn -B test"
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
+        cd /app/databaseUsage;
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html'
+          -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
+      "
     volumes:
-      - ./reports/databaseUsage:/app/databaseUsage/target
+      - ./reports:/reports
     restart: "no"
 
   restfulbooker-load:
@@ -78,8 +101,23 @@ services:
     environment:
       RESTFUL_BOOKER_BASE_URL: ${RESTFUL_BOOKER_BASE_URL:-https://restful-booker.herokuapp.com}
     command: >
-      bash -lc "cd restfulBookerLoad &&
-                mvn -B gatling:test"
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/gatling;
+        cd /app/restfulBookerLoad;
+        mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
+
+        # готовим стабильную папку latest для Jenkins/генератора nested
+        LAST_DIR=\"\$(ls -1dt /reports/gatling/*/ 2>/dev/null | head -n 1 || true)\";
+        if [[ -n \"\$LAST_DIR\" ]]; then
+          rm -rf /reports/gatling/latest;
+          mkdir -p /reports/gatling/latest;
+          cp -a \"\${LAST_DIR%/}\"/. /reports/gatling/latest/;
+          echo \"✔ Latest Gatling report prepared: /reports/gatling/latest/index.html\";
+        else
+          echo \"⚠ Gatling report directory not found in /reports/gatling — latest не подготовлен\";
+        fi
+      "
     volumes:
-      - ./reports/gatling:/app/restfulBookerLoad/target/gatling
+      - ./reports:/reports
     restart: "no"

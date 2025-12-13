@@ -5,6 +5,7 @@ Feature: Modal page
     * Go to "Modal" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Modal" page
     * Check layout "ModalPageVisual" file

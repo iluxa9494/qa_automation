@@ -7,6 +7,7 @@ Feature: Thanks page
     * Check "Thanks" page has opened
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Thanks" page
     * Check layout "ThanksPageVisual" file

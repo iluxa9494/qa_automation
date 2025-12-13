@@ -5,6 +5,7 @@ Feature: Buttons page
     * Go to "Buttons" page
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Buttons" page
     * Check layout "ButtonsPageVisual" file

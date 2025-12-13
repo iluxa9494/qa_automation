@@ -3,13 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-mkdir -p reports/formy reports/databaseUsage reports/gatling
+# Папки под отчёты
+mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested reports/nested/attachments
 
 docker_compose() {
-  # Сначала пробуем Docker Compose v2: `docker compose`
   if docker compose version >/dev/null 2>&1; then
     docker compose "$@"
-  # Если нет — пробуем классический бинарник `docker-compose`
   elif command -v docker-compose >/dev/null 2>&1; then
     docker-compose "$@"
   else
@@ -19,35 +18,62 @@ docker_compose() {
 }
 
 echo "▶ Building qa-tests image (Docker)..."
-docker_compose build || echo "⚠ Docker image build finished with non-zero code, продолжаем для демо"
+docker_compose build || echo "⚠ Docker image build finished with non-zero code, продолжаем"
 
 echo "▶ Running UI tests (formyProject)..."
-docker_compose run --rm formy-tests || echo "⚠ UI tests (formyProject) failed — помечаем как красные, но пайплайн продолжается"
+docker_compose run --rm formy-tests || echo "⚠ UI tests failed — пайплайн продолжается"
 
 echo "▶ Running DB tests (databaseUsage)..."
-docker_compose run --rm database-tests || echo "⚠ DB tests (databaseUsage) failed — помечаем как красные, но пайплайн продолжается"
+docker_compose run --rm database-tests || echo "⚠ DB tests failed — пайплайн продолжается"
 
 echo "▶ Running load tests (restfulBookerLoad)..."
-docker_compose run --rm restfulbooker-load || echo "⚠ Load tests (restfulBookerLoad) failed — помечаем как красные, но пытаемся собрать отчёт"
+docker_compose run --rm restfulbooker-load || echo "⚠ Load tests failed — пайплайн продолжается"
 
-echo "▶ Preparing Gatling report for Jenkins (creating stable 'latest' link)..."
+echo "▶ Preparing Gatling report for Jenkins (stable 'latest' folder)..."
 GATLING_DIR="reports/gatling"
+LATEST_DIR="$GATLING_DIR/latest"
 
+# ВНИМАНИЕ: у тебя lastRun.txt должен оказываться в reports/gatling/lastRun.txt
+# (обычно его создаёт Gatling Maven plugin). Если его нет — fallback на "самую свежую директорию".
+LAST_RUN_DIR_NAME=""
 if [[ -f "$GATLING_DIR/lastRun.txt" ]]; then
-  LAST_RUN_DIR_NAME="$(cat "$GATLING_DIR/lastRun.txt")"
-  LAST_RUN_DIR_PATH="$GATLING_DIR/$LAST_RUN_DIR_NAME"
-
-  if [[ -d "$LAST_RUN_DIR_PATH" ]]; then
-    # Удаляем старый симлинк/папку latest, если был
-    rm -rf "$GATLING_DIR/latest"
-    # Симлинк на последнюю директорию отчёта (например, getbookingfixeddurationloadcheck-2025...)
-    ln -s "$LAST_RUN_DIR_NAME" "$GATLING_DIR/latest"
-    echo "   ✔ Latest Gatling report: $GATLING_DIR/latest/index.html"
-  else
-    echo "⚠ lastRun.txt указывает на '$LAST_RUN_DIR_NAME', но такой директории нет в $GATLING_DIR"
-  fi
-else
-  echo "⚠ lastRun.txt не найден в $GATLING_DIR, Gatling-репорт не подготовлен"
+  LAST_RUN_DIR_NAME="$(tr -d '\r\n' < "$GATLING_DIR/lastRun.txt")"
 fi
+
+if [[ -n "$LAST_RUN_DIR_NAME" && -d "$GATLING_DIR/$LAST_RUN_DIR_NAME" ]]; then
+  LAST_RUN_DIR_PATH="$GATLING_DIR/$LAST_RUN_DIR_NAME"
+else
+  # fallback: берём последнюю по времени директорию
+  LAST_RUN_DIR_PATH="$(ls -1dt "$GATLING_DIR"/*/ 2>/dev/null | head -n 1 || true)"
+  LAST_RUN_DIR_PATH="${LAST_RUN_DIR_PATH%/}"
+fi
+
+if [[ -n "${LAST_RUN_DIR_PATH:-}" && -d "$LAST_RUN_DIR_PATH" ]]; then
+  rm -rf "$LATEST_DIR"
+  mkdir -p "$LATEST_DIR"
+  # Копируем содержимое последнего прогона в стабильную папку latest
+  cp -a "$LAST_RUN_DIR_PATH"/. "$LATEST_DIR"/
+  echo "   ✔ Latest Gatling report prepared: $LATEST_DIR/index.html"
+else
+  echo "⚠ Gatling report directory not found in $GATLING_DIR — latest не подготовлен"
+fi
+
+echo "▶ Generating Nested Data report (reports/nested/data.json)..."
+
+# Пути к входным данным (совпадают с docker-compose'ом)
+export CUCUMBER_UI_JSON="reports/formy/cucumber.json"
+export CUCUMBER_DB_JSON="reports/databaseUsage/cucumber.json"
+
+# Gatling: предпочитаем чистый JSON (global_stats.json)
+export GATLING_GLOBAL_STATS_JSON="reports/gatling/latest/js/global_stats.json"
+
+# Куда писать итоговый json для Jenkins nested-data-reporting plugin
+export NESTED_OUT_JSON="reports/nested/data.json"
+
+# Генератор на Java (без внешних зависимостей)
+mkdir -p .tmp-nested reports/nested
+
+javac -encoding UTF-8 -d .tmp-nested tools/NestedReportGenerator.java
+java -cp .tmp-nested NestedReportGenerator || echo "⚠ Failed to generate nested data.json (java error) — пайплайн продолжается"
 
 echo "✔ All QA test suites finished. Reports are in ./reports/"

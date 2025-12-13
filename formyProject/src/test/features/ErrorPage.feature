@@ -23,6 +23,7 @@ Feature: Error page
     * Click on "File Download" in dropdown list and check "filedownload" page has opened
 
 #nonfunctional - layout/visual
+  @visual
   Scenario: Layout test
 #    * Make page dump of "Error" page
     * Check layout "ErrorPageVisual" file

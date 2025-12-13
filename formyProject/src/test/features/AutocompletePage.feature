@@ -4,11 +4,13 @@ Feature: Autocomplete page
     * Open browser and go to Formy site
     * Go to "Autocomplete" page
 
+@visual
 #nonfunctional - layout/visual
   Scenario: Layout test
 #    * Make page dump of "Autocomplete" page
     * Check layout "AutocompletePageVisual" file
     * Close browser
+
 #functional
   Scenario: Dropdown - Address field has dropdown only
     * Check all fields is empty
@@ -364,6 +366,7 @@ Feature: Autocomplete page
       | Autocomplete                  |
       | Buttons                       |
       | Checkbox                      |
+      | Datepicker                    |
       | Datepicker                    |
       | Drag and Drop                 |
       | Dropdown                      |
