@@ -35,11 +35,15 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Nested Data Reporting — JSON формата плагина
+            // ✅ Nested Data Reporting — JSON (Nested Data Reporting plugin)
+            // ВАЖНО: name без пробелов/скобок + стабильный id, чтобы URL не разваливался
             publishReport(
-                name: 'QA Summary (Nested)',
+                name: 'QA_Summary_Nested',
                 displayType: 'ALWAYS',
-                provider: json(pattern: 'reports/nested/data.json')
+                provider: json(
+                    id: 'qa_summary',
+                    pattern: 'reports/nested/data.json'
+                )
             )
 
             // UI-тесты (Formy) — Cucumber HTML (папка + index.html)
