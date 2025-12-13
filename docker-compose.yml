@@ -108,11 +108,11 @@ services:
         mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
 
         # готовим стабильную папку latest для Jenkins/генератора nested
-        LAST_DIR=\"\$(ls -1dt /reports/gatling/*/ 2>/dev/null | head -n 1 || true)\";
-        if [[ -n \"\$LAST_DIR\" ]]; then
+        LAST_DIR=\"$$(ls -1dt /reports/gatling/*/ 2>/dev/null | head -n 1 || true)\";
+        if [[ -n \"$$LAST_DIR\" ]]; then
           rm -rf /reports/gatling/latest;
           mkdir -p /reports/gatling/latest;
-          cp -a \"\${LAST_DIR%/}\"/. /reports/gatling/latest/;
+          cp -a \"$${LAST_DIR%/}\"/. /reports/gatling/latest/;
           echo \"✔ Latest Gatling report prepared: /reports/gatling/latest/index.html\";
         else
           echo \"⚠ Gatling report directory not found in /reports/gatling — latest не подготовлен\";

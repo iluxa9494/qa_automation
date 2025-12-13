@@ -69,7 +69,7 @@
             <version>3.12.8</version>
         </dependency>
 
-        <!-- ✅ Нужно для tools.NestedReportGenerator (ObjectMapper и т.п.) -->
+        <!-- Нужно для tools.NestedReportGenerator -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -94,7 +94,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven.surefire.version}</version>
-
                 <dependencies>
                     <dependency>
                         <groupId>org.apache.maven.surefire</groupId>
@@ -102,7 +101,6 @@
                         <version>${maven.surefire.version}</version>
                     </dependency>
                 </dependencies>
-
                 <configuration>
                     <useSystemClassLoader>false</useSystemClassLoader>
                     <includes>
@@ -112,14 +110,18 @@
                 </configuration>
             </plugin>
 
-            <!-- ✅ Чтобы можно было запускать генератор так:
-                 mvn -f databaseUsage/pom.xml test-compile exec:java -Dexec.mainClass=tools.NestedReportGenerator
-            -->
+            <!-- ✅ Exec Maven Plugin (запуск генератора) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.maven.plugin.version}</version>
+                <configuration>
+                    <!-- Генератор лежит в src/test/java -->
+                    <classpathScope>test</classpathScope>
+                    <mainClass>tools.NestedReportGenerator</mainClass>
+                </configuration>
             </plugin>
+
         </plugins>
     </build>
 
