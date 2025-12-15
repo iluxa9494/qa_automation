@@ -25,7 +25,7 @@ public class DriveSteps extends Drive {
 
     @Then("Close browser")
     public void closeBrowser() {
-        drivePage.StopTest();
+        drivePage.stopTest();
     }
 
     @Then("Check layout {string} file")
