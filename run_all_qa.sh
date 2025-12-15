@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 cd "$(dirname "$0")"
 
-mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested reports/nested/attachments
+mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
 
 docker_compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -11,25 +10,16 @@ docker_compose() {
   elif command -v docker-compose >/dev/null 2>&1; then
     docker-compose "$@"
   else
-    echo "❌ Docker Compose не установлен (ни 'docker compose', ни 'docker-compose' не найдены)." >&2
+    echo "❌ Docker Compose не установлен." >&2
     exit 1
   fi
 }
 
-# ✅ всегда стартуем с чистых DB volumes, чтобы init.sql применялся каждый прогон
-echo "▶ Reset docker stack (down -v) to apply DB init.sql..."
-docker_compose down -v --remove-orphans >/dev/null 2>&1 || true
-
 copy_reports_from_container() {
   local container_name="$1"
-  local src_path="${2:-/reports}"
-  local dst_dir="${3:-reports}"
-
   if docker ps -a --format '{{.Names}}' | grep -qx "$container_name"; then
-    echo "▶ Copying reports from $container_name:$src_path -> ./$dst_dir ..."
-    mkdir -p "$dst_dir"
-    docker cp "${container_name}:${src_path}/." "${dst_dir}/" 2>/dev/null || true
-    echo "▶ Removing container $container_name ..."
+    echo "▶ Copying reports from $container_name:/reports -> ./reports ..."
+    docker cp "${container_name}:/reports/." "reports/" 2>/dev/null || true
     docker rm -f "$container_name" >/dev/null 2>&1 || true
   else
     echo "⚠ Container $container_name not found — nothing to copy"
@@ -41,19 +31,15 @@ run_service_keep_container() {
   local container_name="$2"
   local clean_dir="$3"
 
-  echo "▶ Running: $service (container: $container_name) ..."
-
   docker rm -f "$container_name" >/dev/null 2>&1 || true
-
-  rm -rf "$clean_dir"
-  mkdir -p "$clean_dir"
+  rm -rf "$clean_dir" && mkdir -p "$clean_dir"
 
   set +e
   docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
   local exit_code=$?
   set -e
 
-  copy_reports_from_container "$container_name" "/reports" "reports"
+  copy_reports_from_container "$container_name"
 
   if [[ $exit_code -ne 0 ]]; then
     echo "⚠ $service failed (exit=$exit_code) — продолжаем"
@@ -61,45 +47,67 @@ run_service_keep_container() {
   return 0
 }
 
-echo "▶ Building qa-tests image (Docker)..."
-docker_compose build || echo "⚠ Docker build failed — продолжаем"
+echo "▶ Building qa-tests image..."
+docker_compose build || echo "⚠ build failed — продолжаем"
 
-run_service_keep_container "formy-tests"         "qa-formy-tests"           "reports/formy"
-run_service_keep_container "database-tests"      "qa-database-tests"        "reports/databaseUsage"
-run_service_keep_container "restfulbooker-load"  "qa-gatling-restfulbooker" "reports/gatling"
+run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy"
+run_service_keep_container "database-tests"     "qa-database-tests"        "reports/databaseUsage"
+run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"
 
 echo "▶ Checking expected report files..."
-[[ -f reports/formy/cucumber.json ]] && echo "   ✔ reports/formy/cucumber.json" || echo "⚠ reports/formy/cucumber.json NOT found"
-[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ reports/databaseUsage/cucumber.json" || echo "⚠ reports/databaseUsage/cucumber.json NOT found"
-[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ reports/gatling/latest/index.html" || echo "⚠ reports/gatling/latest/index.html NOT found"
+[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || echo "⚠ formy cucumber.json NOT found"
+[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
+[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
 
-echo "▶ Generating Nested HTML report (reports/nested/index.html)..."
-mkdir -p reports/nested
-
-set +e
-mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile \
-  exec:java -Dexec.mainClass=tools.NestedReportGenerator -Dexec.classpathScope=test
-gen_ec=$?
-set -e
-
-# ✅ чтобы кнопка в Jenkins всегда открывалась
-if [[ $gen_ec -ne 0 || ! -f reports/nested/index.html ]]; then
-  echo "⚠ Nested generator failed or did not produce index.html — generating stub"
-  cat > reports/nested/index.html <<'HTML'
+echo "▶ Generating Nested HTML (reports/nested/index.html)..."
+cat > reports/nested/index.html <<'HTML'
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>QA Summary (Nested)</title></head>
-<body style="font-family: sans-serif">
-<h2>QA Summary (Nested)</h2>
-<p>Stub: nested generator failed or input reports missing.</p>
-<p>Check presence of:</p>
-<ul>
-  <li>reports/formy/cucumber.json</li>
-  <li>reports/databaseUsage/cucumber.json</li>
-</ul>
-</body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>QA Summary (Nested)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    a { text-decoration: none; }
+    code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>QA Summary (Nested)</h1>
+
+  <div class="card">
+    <h2>UI tests (Formy)</h2>
+    <ul>
+      <li>HTML: <a href="../formy/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>reports/formy/cucumber.json</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>DB tests</h2>
+    <ul>
+      <li>HTML: <a href="../databaseUsage/cucumber.html">open</a></li>
+      <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Load tests (Gatling)</h2>
+    <ul>
+      <li>HTML: <a href="../gatling/latest/index.html">open</a></li>
+    </ul>
+  </div>
+
+  <p style="opacity:.7;margin-top:24px">
+    Если Formy/DB упали — проверь в консоли билда ошибки и наличие JSON.
+  </p>
+</body>
+</html>
 HTML
-fi
+
+echo "✔ Nested index.html generated"
 
 echo "✔ All QA test suites finished"
-echo "📊 Reports directory structure:"
 ls -la reports || true

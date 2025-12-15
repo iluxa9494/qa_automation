@@ -1,3 +1,4 @@
+// Jenkinsfile
 pipeline {
     agent any
 
@@ -6,9 +7,7 @@ pipeline {
         maven 'Maven3'
     }
 
-    options {
-        timestamps()
-    }
+    options { timestamps() }
 
     environment {
         SELENIUM_BASE_IMAGE = 'seleniarm/standalone-chromium:latest'
@@ -36,10 +35,9 @@ pipeline {
     post {
         always {
             sh 'mkdir -p reports'
-
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Nested как HTML (самый простой и надёжный путь)
+            // ✅ Nested публикуем как HTML
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,

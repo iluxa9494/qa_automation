@@ -29,4 +29,9 @@ ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
 COPY . .
 
+# ✅ важно: selenium base images ожидают запуск не под root
+RUN chown -R seluser:seluser /app
+
+USER seluser
+
 CMD ["bash", "-lc", "echo 'Use docker compose services (formy-tests, database-tests, restfulbooker-load) to run tests.'"]
