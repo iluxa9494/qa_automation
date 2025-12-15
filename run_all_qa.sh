@@ -62,30 +62,98 @@ run_service_keep_container() {
 echo "▶ Building qa-tests image (Docker)..."
 docker_compose build || echo "⚠ Docker build failed — продолжаем"
 
-run_service_keep_container "formy-tests"        "qa-formy-tests"          "reports/formy"
-run_service_keep_container "database-tests"     "qa-database-tests"       "reports/databaseUsage"
-run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"
+# ✅ В CI проще всего гарантировать “чистую” БД перед DB-suite
+# (иначе init.sql может не примениться при непустом datadir)
+echo "▶ Reset DB containers/volumes for clean init.sql ..."
+docker_compose down -v --remove-orphans >/dev/null 2>&1 || true
+
+run_service_keep_container "formy-tests"         "qa-formy-tests"           "reports/formy"
+run_service_keep_container "database-tests"      "qa-database-tests"        "reports/databaseUsage"
+run_service_keep_container "restfulbooker-load"  "qa-gatling-restfulbooker" "reports/gatling"
 
 echo "▶ Checking expected report files..."
 [[ -f reports/formy/cucumber.json ]] && echo "   ✔ reports/formy/cucumber.json" || echo "⚠ reports/formy/cucumber.json NOT found"
 [[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ reports/databaseUsage/cucumber.json" || echo "⚠ reports/databaseUsage/cucumber.json NOT found"
 [[ -f reports/gatling/latest/index.html ]] && echo "   ✔ reports/gatling/latest/index.html" || echo "⚠ reports/gatling/latest/index.html NOT found"
 
-echo "▶ Generating Nested Data report (reports/nested/data.json)..."
+echo "▶ Generating Nested HTML (reports/nested/index.html)..."
 mkdir -p reports/nested
 
-set +e
-mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile \
-  exec:java -Dexec.mainClass=tools.NestedReportGenerator -Dexec.classpathScope=test
-gen_ec=$?
-set -e
+# Простой “агрегатор” без плагинов Jenkins: просто страница со ссылками на отчёты
+cat > reports/nested/index.html <<'HTML'
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>QA Summary (Nested)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 16px; }
+    .ok { color: #0a7; }
+    .bad { color: #c33; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>QA Summary (Nested)</h1>
+  <p>Сводная страница Jenkins-артефактов (UI / DB / Load).</p>
 
-if [[ $gen_ec -ne 0 || ! -f reports/nested/data.json ]]; then
-  echo "⚠ Nested generator failed or did not produce data.json — generating stub to keep Jenkins button visible"
-  cat > reports/nested/data.json <<'JSON'
-{"suites":[],"meta":{"note":"stub: nested generator failed or input reports missing"}}
-JSON
-fi
+  <ul>
+    <li>
+      UI (Formy):
+      <a href="../formy/cucumber-html-report/index.html">cucumber-html-report</a>
+      (<code>reports/formy</code>)
+    </li>
+    <li>
+      DB (databaseUsage):
+      <a href="../databaseUsage/cucumber.html">cucumber.html</a>
+      (<code>reports/databaseUsage</code>)
+    </li>
+    <li>
+      Load (Gatling):
+      <a href="../gatling/latest/index.html">latest/index.html</a>
+      (<code>reports/gatling/latest</code>)
+    </li>
+  </ul>
+
+  <h2>Наличие файлов</h2>
+  <ul>
+    <li id="ui"></li>
+    <li id="db"></li>
+    <li id="gatling"></li>
+  </ul>
+
+<script>
+  async function exists(url) {
+    try {
+      const r = await fetch(url, { method: "HEAD" });
+      return r.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+  (async () => {
+    const ui = await exists("../formy/cucumber.json");
+    const db = await exists("../databaseUsage/cucumber.json");
+    const ga = await exists("../gatling/latest/index.html");
+
+    const set = (id, ok, label) => {
+      const el = document.getElementById(id);
+      el.className = ok ? "ok" : "bad";
+      el.textContent = (ok ? "✔ " : "✖ ") + label;
+    };
+
+    set("ui", ui, "reports/formy/cucumber.json");
+    set("db", db, "reports/databaseUsage/cucumber.json");
+    set("gatling", ga, "reports/gatling/latest/index.html");
+  })();
+</script>
+
+</body>
+</html>
+HTML
+
+echo "   ✔ reports/nested/index.html generated"
 
 echo "✔ All QA test suites finished"
 echo "📊 Reports directory structure:"

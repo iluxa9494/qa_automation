@@ -1,11 +1,8 @@
 # docker-compose.yml
+
 networks:
   qa-net:
     driver: bridge
-
-volumes:
-  mysql-data:
-  mongo-data:
 
 services:
   formy-tests:
@@ -41,8 +38,6 @@ services:
     image: mongo:7
     container_name: qa-mongo
     networks: [qa-net]
-    volumes:
-      - mongo-data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017/admin", "--eval", "db.runCommand({ ping: 1 }).ok"]
       interval: 5s
@@ -58,8 +53,9 @@ services:
       MYSQL_DATABASE: test
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    # ✅ всегда инициализируем схему для CI (работает на пустой базе)
     volumes:
-      - mysql-data:/var/lib/mysql
+      - ./databaseUsage/src/test/resources/mysql/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
       interval: 5s
