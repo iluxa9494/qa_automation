@@ -22,6 +22,10 @@ RUN set -eux; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
+# ✅ ВАЖНО: /reports должен быть writable для seluser (без bind-mount'ов в Jenkins)
+RUN mkdir -p /reports \
+  && chown -R seluser:seluser /reports
+
 ENV DISPLAY=:99
 ENV FORMY_BASE_URL="https://formy-project.herokuapp.com"
 ENV RESTFUL_BOOKER_BASE_URL="https://restful-booker.herokuapp.com"
