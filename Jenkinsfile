@@ -36,7 +36,7 @@ pipeline {
             sh 'mkdir -p reports'
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Одна главная кнопка
+            // ✅ Главная страница без ".." (нет traversal)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
@@ -46,7 +46,32 @@ pipeline {
                 reportName:            'QA Dashboard'
             ])
 
-            // (опционально) отдельные кнопки можно оставить — но они уже не обязательны
+            publishHTML(target: [
+                allowMissing:          true,
+                alwaysLinkToLastBuild: true,
+                keepAll:               true,
+                reportDir:             'reports/formy/cucumber-html-report',
+                reportFiles:           'index.html',
+                reportName:            'UI tests (Formy)'
+            ])
+
+            publishHTML(target: [
+                allowMissing:          true,
+                alwaysLinkToLastBuild: true,
+                keepAll:               true,
+                reportDir:             'reports/databaseUsage',
+                reportFiles:           'cucumber.html',
+                reportName:            'DB tests'
+            ])
+
+            publishHTML(target: [
+                allowMissing:          true,
+                alwaysLinkToLastBuild: true,
+                keepAll:               true,
+                reportDir:             'reports/gatling/latest',
+                reportFiles:           'index.html',
+                reportName:            'Load tests (Gatling)'
+            ])
         }
     }
 }

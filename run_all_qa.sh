@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-mkdir -p reports/formy reports/databaseUsage reports/gatling
+mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
 
 docker_compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -101,7 +101,7 @@ cat > reports/index.html <<'HTML'
   </div>
 
   <p style="opacity:.7;margin-top:24px">
-    Если Formy/DB упали — смотри консоль билда: тогда JSON/HTML могут не появиться.
+    Если Formy/DB упали — проверь консоль билда и наличие cucumber.json.
   </p>
 </body>
 </html>
