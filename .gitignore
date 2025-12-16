@@ -72,7 +72,7 @@ docker-compose.override.local.yml
 docker-compose.dev.yml
 
 # reports should be runtime artifacts, not source-controlled
-reports/**
+reports/formy
 !reports/.gitkeep
 
 # build outputs
