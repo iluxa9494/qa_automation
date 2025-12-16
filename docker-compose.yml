@@ -7,7 +7,7 @@ services:
     build:
       context: .
       args:
-        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
+        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-selenium/standalone-chromium:latest}
     image: qa-tests
     container_name: qa-formy-tests
     networks: [qa-net]
@@ -15,15 +15,16 @@ services:
     environment:
       FORMY_BASE_URL: ${FORMY_BASE_URL:-https://formy-project.herokuapp.com}
       DISPLAY: ":99"
-      CHROMEDRIVER_PATH: "/usr/bin/chromedriver"
     command: >
       bash -lc "
         set -euo pipefail;
+
         mkdir -p /reports/formy/cucumber-html-report /reports/formy/surefire;
         Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+
         cd /app/formyProject;
-        mvn -B test
-          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report'
+        mvn -B test \
+          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report' \
           -Dsurefire.reportsDirectory=/reports/formy/surefire
       "
     restart: "no"
@@ -74,10 +75,12 @@ services:
     command: >
       bash -lc "
         set -euo pipefail;
+
         mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
         cd /app/databaseUsage;
-        mvn -B test
-          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html'
+
+        mvn -B test \
+          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html' \
           -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
       "
     restart: "no"
@@ -91,6 +94,7 @@ services:
     command: >
       bash -lc "
         set -euo pipefail;
+
         mkdir -p /reports/gatling;
         cd /app/restfulBookerLoad;
         mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
@@ -100,6 +104,10 @@ services:
           rm -rf /reports/gatling/latest;
           mkdir -p /reports/gatling/latest;
           cp -a \"$${LAST_DIR%/}\"/. /reports/gatling/latest/;
+          echo \"✔ Latest Gatling report prepared: /reports/gatling/latest/index.html\";
+        else
+          echo \"⚠ Gatling report directory not found in /reports/gatling — latest не подготовлен\";
+          exit 2
         fi
       "
     restart: "no"

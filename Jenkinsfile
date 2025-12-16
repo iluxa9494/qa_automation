@@ -12,7 +12,7 @@ pipeline {
     }
 
     environment {
-        SELENIUM_BASE_IMAGE = 'seleniarm/standalone-chromium:latest'
+        SELENIUM_BASE_IMAGE = 'selenium/standalone-chromium:latest'
     }
 
     stages {
