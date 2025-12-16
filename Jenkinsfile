@@ -23,10 +23,7 @@ pipeline {
         stage('Run all QA tests') {
             steps {
                 sh 'chmod +x run_all_qa.sh'
-                script {
-                    def rc = sh(script: './run_all_qa.sh', returnStatus: true)
-                    echo "run_all_qa.sh exit code: ${rc}"
-                }
+                sh './run_all_qa.sh'   // ✅ если exit != 0 — билд станет RED
             }
         }
     }
@@ -36,7 +33,6 @@ pipeline {
             sh 'mkdir -p reports'
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Главная страница без ".." (нет traversal)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
