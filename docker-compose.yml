@@ -1,3 +1,4 @@
+# docker-compose.yml
 networks:
   qa-net:
     driver: bridge
@@ -5,7 +6,7 @@ networks:
 services:
   formy-tests:
     build:
-      context: .
+      context: .   # ✅ ВАЖНО: контекст — корень репо
       args:
         SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
     image: qa-tests
@@ -18,10 +19,13 @@ services:
     command: >
       bash -lc "
         set -euo pipefail;
+
         export JAVA_HOME=\"$(dirname $(dirname $(readlink -f $(command -v javac))))\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
+
         mkdir -p /reports/formy/cucumber-html-report /reports/formy/surefire;
         Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+
         cd /app/formyProject;
         mvn -B test \
           -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report' \
@@ -75,10 +79,13 @@ services:
     command: >
       bash -lc "
         set -euo pipefail;
+
         export JAVA_HOME=\"$(dirname $(dirname $(readlink -f $(command -v javac))))\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
+
         mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
         cd /app/databaseUsage;
+
         mvn -B test \
           -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html' \
           -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
@@ -94,11 +101,14 @@ services:
     command: >
       bash -lc "
         set -euo pipefail;
+
         export JAVA_HOME=\"$(dirname $(dirname $(readlink -f $(command -v javac))))\";
         export PATH=\"$JAVA_HOME/bin:$PATH\";
+
         mkdir -p /reports/gatling;
         cd /app/restfulBookerLoad;
         mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
+
         LAST_DIR=\"$$(ls -1dt /reports/gatling/*/ 2>/dev/null | head -n 1 || true)\";
         if [[ -n \"$$LAST_DIR\" ]]; then
           rm -rf /reports/gatling/latest;

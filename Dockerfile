@@ -1,3 +1,4 @@
+# Dockerfile
 ARG SELENIUM_BASE_IMAGE=seleniarm/standalone-chromium:latest
 FROM ${SELENIUM_BASE_IMAGE}
 
@@ -19,6 +20,7 @@ RUN apt-get update \
 RUN set -eux; \
     JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
     JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
+    echo "Detected JAVA_HOME=$JAVA_HOME_DIR"; \
     echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
@@ -31,7 +33,7 @@ ENV FORMY_BASE_URL="https://formy-project.herokuapp.com"
 ENV RESTFUL_BOOKER_BASE_URL="https://restful-booker.herokuapp.com"
 ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
-COPY . .
+COPY . .   # ✅ ВАЖНО: только внутри build context
 
 RUN chown -R seluser:seluser /app
 USER seluser

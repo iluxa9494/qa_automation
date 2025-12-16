@@ -11,15 +11,15 @@ docker_compose() {
     docker-compose "$@"
   else
     echo "❌ Docker Compose не установлен." >&2
-    exit 1
+    exit 2
   fi
 }
 
 echo "▶ Preflight: docker доступ"
-docker version >/dev/null 2>&1 || {
+if ! docker ps >/dev/null 2>&1; then
   echo "❌ Нет доступа к Docker daemon (docker.sock). Jenkins должен иметь доступ к /var/run/docker.sock." >&2
-  exit 1
-}
+  exit 2
+fi
 
 copy_reports_from_container() {
   local container_name="$1"
@@ -37,6 +37,7 @@ run_service_keep_container() {
   local container_name="$2"
   local clean_dir="$3"
 
+  echo "▶ Running suite: $service"
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   rm -rf "$clean_dir" && mkdir -p "$clean_dir"
 
@@ -46,30 +47,30 @@ run_service_keep_container() {
   set -e
 
   copy_reports_from_container "$container_name"
-  return "$exit_code"
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "⚠ $service failed (exit=$exit_code) — продолжаем"
+  else
+    echo "✔ $service OK"
+  fi
+
+  return $exit_code
 }
 
 echo "▶ Building qa-tests image..."
 docker_compose build
 
-rc_formy=0
-rc_db=0
-rc_gatling=0
+fail_count=0
+ok_count=0
 
-set +e
-run_service_keep_container "formy-tests"        "qa-formy-tests"            "reports/formy"
-rc_formy=$?
-run_service_keep_container "database-tests"     "qa-database-tests"         "reports/databaseUsage"
-rc_db=$?
-run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker"  "reports/gatling"
-rc_gatling=$?
-set -e
+run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy"         && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
+run_service_keep_container "database-tests"     "qa-database-tests"        "reports/databaseUsage" && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
+run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"       && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
 
 echo "▶ Checking expected report files..."
-has_any=0
-[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" && has_any=1 || echo "⚠ formy cucumber.json NOT found"
-[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" && has_any=1 || echo "⚠ db cucumber.json NOT found"
-[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" && has_any=1 || echo "⚠ gatling latest/index.html NOT found"
+[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || echo "⚠ formy cucumber.json NOT found"
+[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
+[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
 
 echo "▶ Generating QA Dashboard (reports/index.html)..."
 cat > reports/index.html <<'HTML'
@@ -116,17 +117,13 @@ cat > reports/index.html <<'HTML'
 HTML
 
 echo "✔ reports/index.html generated"
-echo "▶ Exit codes: formy=$rc_formy db=$rc_db gatling=$rc_gatling"
+ls -la reports || true
 
-# ✅ если вообще ничего не произвели — это реальный провал
-if [[ "$has_any" -eq 0 ]]; then
-  echo "❌ Ни одного отчёта не сгенерировано — считаем билд проваленным"
+# ✅ Правило фейла: если все suites упали — билд красный
+if [[ $ok_count -eq 0 ]]; then
+  echo "❌ Все тестовые наборы упали/не запустились. fail_count=$fail_count"
   exit 1
 fi
 
-echo "⚠ Если какой-то suite упал — билд НЕ валим (по твоей логике), но логируем:"
-if [[ "$rc_formy" -ne 0 ]]; then echo "⚠ formy-tests failed (exit=$rc_formy)"; fi
-if [[ "$rc_db" -ne 0 ]]; then echo "⚠ database-tests failed (exit=$rc_db)"; fi
-if [[ "$rc_gatling" -ne 0 ]]; then echo "⚠ restfulbooker-load failed (exit=$rc_gatling)"; fi
-
-echo "✔ Done"
+echo "✔ Done. ok_count=$ok_count fail_count=$fail_count"
+exit 0
