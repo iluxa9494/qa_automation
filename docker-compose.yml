@@ -6,7 +6,7 @@ networks:
 services:
   formy-tests:
     build:
-      context: ..
+      context: .   # ✅ ВАЖНО: в Jenkins build context должен быть workspace проекта
       args:
         SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
     image: qa-tests

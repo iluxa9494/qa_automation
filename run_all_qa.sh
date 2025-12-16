@@ -15,6 +15,11 @@ docker_compose() {
   fi
 }
 
+# ✅ Если docker недоступен в Jenkins — это инфраструктурная ошибка, падаем сразу
+echo "▶ Preflight: docker доступ"
+docker version >/dev/null
+docker ps >/dev/null
+
 copy_reports_from_container() {
   local container_name="$1"
   if docker ps -a --format '{{.Names}}' | grep -qx "$container_name"; then
@@ -31,6 +36,8 @@ run_service_keep_container() {
   local container_name="$2"
   local clean_dir="$3"
 
+  echo "▶ Running service: $service"
+
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   rm -rf "$clean_dir" && mkdir -p "$clean_dir"
 
@@ -42,22 +49,54 @@ run_service_keep_container() {
   copy_reports_from_container "$container_name"
 
   if [[ $exit_code -ne 0 ]]; then
-    echo "⚠ $service failed (exit=$exit_code) — продолжаем"
+    echo "⚠ $service failed (exit=$exit_code) — продолжаем (это может быть падение тестов)"
   fi
-  return 0
+
+  return "$exit_code"
 }
 
 echo "▶ Building qa-tests image..."
-docker_compose build || echo "⚠ build failed — продолжаем"
+# ✅ build не должен быть "soft": если образ не собрался — дальше смысла нет
+docker_compose build
 
-run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy"
-run_service_keep_container "database-tests"     "qa-database-tests"        "reports/databaseUsage"
-run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"
+formy_ec=0
+db_ec=0
+gatling_ec=0
+
+set +e
+run_service_keep_container "formy-tests"        "qa-formy-tests"            "reports/formy"
+formy_ec=$?
+run_service_keep_container "database-tests"     "qa-database-tests"         "reports/databaseUsage"
+db_ec=$?
+run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker"  "reports/gatling"
+gatling_ec=$?
+set -e
 
 echo "▶ Checking expected report files..."
-[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || echo "⚠ formy cucumber.json NOT found"
-[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
-[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
+formy_ok=0
+db_ok=0
+gatling_ok=0
+
+if [[ -f reports/formy/cucumber.json ]]; then
+  echo "   ✔ formy cucumber.json"
+  formy_ok=1
+else
+  echo "⚠ formy cucumber.json NOT found"
+fi
+
+if [[ -f reports/databaseUsage/cucumber.json ]]; then
+  echo "   ✔ db cucumber.json"
+  db_ok=1
+else
+  echo "⚠ db cucumber.json NOT found"
+fi
+
+if [[ -f reports/gatling/latest/index.html ]]; then
+  echo "   ✔ gatling latest/index.html"
+  gatling_ok=1
+else
+  echo "⚠ gatling latest/index.html NOT found"
+fi
 
 echo "▶ Generating QA Dashboard (reports/index.html)..."
 cat > reports/index.html <<'HTML'
@@ -72,6 +111,7 @@ cat > reports/index.html <<'HTML'
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
     a { text-decoration: none; }
     code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid #ddd; }
   </style>
 </head>
 <body>
@@ -108,5 +148,16 @@ cat > reports/index.html <<'HTML'
 HTML
 
 echo "✔ reports/index.html generated"
-echo "✔ All QA test suites finished"
+echo "📦 Exit codes: formy=$formy_ec db=$db_ec gatling=$gatling_ec"
+
+# ✅ Если вообще ничего не получилось (все отчёты отсутствуют) — это уже не "тесты упали", а "ничего не запустилось"
+sum_ok=$((formy_ok + db_ok + gatling_ok))
+if [[ "$sum_ok" -eq 0 ]]; then
+  echo "❌ No reports produced at all — failing build (инфраструктура/контейнеры/пути)"
+  exit 10
+fi
+
+# ✅ Иначе оставляем билд зелёным, даже если один suite упал — отчёты будут в Jenkins
+echo "✔ All QA suites finished (some may have failed)."
 ls -la reports || true
+exit 0
