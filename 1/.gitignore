@@ -42,7 +42,7 @@ replay_pid*
 ### TEST REPORTS / QA ###
 galen-reports/
 report/
-reports/
+../reports/
 screenshots/
 test-output/
 surefire-reports/

@@ -6,7 +6,7 @@ networks:
 services:
   formy-tests:
     build:
-      context: .
+      context: ..
       args:
         SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
     image: qa-tests

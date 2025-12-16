@@ -1,0 +1,11 @@
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+RUN apt-get update && \
+    apt-get install -y docker-cli docker-compose && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_OPTS="-Dhudson.model.DirectoryBrowserSupport.CSP="
+
+USER jenkins

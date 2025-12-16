@@ -37,7 +37,7 @@ ENV FORMY_BASE_URL="https://formy-project.herokuapp.com"
 ENV RESTFUL_BOOKER_BASE_URL="https://restful-booker.herokuapp.com"
 ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
-COPY . .
+COPY .. .
 
 # ✅ selenium base images ожидают запуск не под root
 RUN chown -R seluser:seluser /app
