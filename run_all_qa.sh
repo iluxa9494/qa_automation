@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+set -x
+docker ps
+docker-compose version
+docker-compose config
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -11,21 +15,8 @@ docker_compose() {
     docker-compose "$@"
   else
     echo "❌ Docker Compose не установлен." >&2
-    exit 2
+    exit 1
   fi
-}
-
-preflight() {
-  echo "▶ Preflight: docker доступ"
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "❌ docker CLI не найден в окружении Jenkins" >&2
-    exit 2
-  fi
-  if ! docker ps >/dev/null 2>&1; then
-    echo "❌ Нет доступа к Docker daemon (docker.sock). Jenkins должен иметь доступ к /var/run/docker.sock." >&2
-    exit 2
-  fi
-  docker_compose version >/dev/null 2>&1 || true
 }
 
 copy_reports_from_container() {
@@ -39,12 +30,11 @@ copy_reports_from_container() {
   fi
 }
 
-run_service() {
+run_service_keep_container() {
   local service="$1"
   local container_name="$2"
   local clean_dir="$3"
 
-  echo "▶ Running suite: $service"
   docker rm -f "$container_name" >/dev/null 2>&1 || true
   rm -rf "$clean_dir" && mkdir -p "$clean_dir"
 
@@ -54,12 +44,52 @@ run_service() {
   set -e
 
   copy_reports_from_container "$container_name"
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "⚠ $service failed (exit=$exit_code) — продолжаем"
+  fi
+
   return "$exit_code"
 }
 
-generate_dashboard() {
-  echo "▶ Generating QA Dashboard (reports/index.html)..."
-  cat > reports/index.html <<'HTML'
+echo "▶ Preflight: docker доступен?"
+if ! docker ps >/dev/null 2>&1; then
+  echo "❌ Docker недоступен из job (docker ps падает). Смотри права на /var/run/docker.sock" >&2
+  exit 1
+fi
+
+echo "▶ Building qa-tests image..."
+set +e
+docker_compose build
+build_rc=$?
+set -e
+if [[ $build_rc -ne 0 ]]; then
+  echo "⚠ build failed (exit=$build_rc) — попробуем запустить на уже существующем образе, но если ничего не отработает — билд будет красным"
+fi
+
+overall_rc=0
+succeeded_any=0
+
+set +e
+run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy"
+rc_formy=$?
+run_service_keep_container "database-tests"     "qa-database-tests"        "reports/databaseUsage"
+rc_db=$?
+run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"
+rc_gatling=$?
+set -e
+
+[[ $rc_formy -eq 0 ]] && succeeded_any=1 || overall_rc=1
+[[ $rc_db -eq 0 ]] && succeeded_any=1 || overall_rc=1
+[[ $rc_gatling -eq 0 ]] && succeeded_any=1 || overall_rc=1
+
+echo "▶ Checking expected report files..."
+[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || echo "⚠ formy cucumber.json NOT found"
+[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
+[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
+
+echo "▶ Generating QA Dashboard (reports/index.html)..."
+cat > reports/index.html <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
@@ -98,61 +128,23 @@ generate_dashboard() {
       <li>HTML: <a href="gatling/latest/index.html">open</a></li>
     </ul>
   </div>
+
+  <p style="opacity:.7;margin-top:24px">
+    Если Formy/DB упали — проверь консоль билда и наличие cucumber.json.
+  </p>
 </body>
 </html>
 HTML
-}
 
-preflight
-
-echo "▶ Building qa-tests image..."
-docker_compose build
-
-failures=0
-ran_any=0
-
-if run_service "formy-tests" "qa-formy-tests" "reports/formy"; then
-  ran_any=1
-else
-  ran_any=1
-  failures=$((failures+1))
-  echo "⚠ formy-tests failed — продолжаем"
-fi
-
-if run_service "database-tests" "qa-database-tests" "reports/databaseUsage"; then
-  ran_any=1
-else
-  ran_any=1
-  failures=$((failures+1))
-  echo "⚠ database-tests failed — продолжаем"
-fi
-
-if run_service "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"; then
-  ran_any=1
-else
-  ran_any=1
-  failures=$((failures+1))
-  echo "⚠ restfulbooker-load failed — продолжаем"
-fi
-
-generate_dashboard
-
-echo "▶ Checking expected report files..."
-[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || { echo "❌ formy cucumber.json NOT found"; failures=$((failures+1)); }
-[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || { echo "❌ db cucumber.json NOT found"; failures=$((failures+1)); }
-[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || { echo "❌ gatling latest/index.html NOT found"; failures=$((failures+1)); }
-
-echo "📊 Reports directory:"
+echo "✔ reports/index.html generated"
+echo "✔ All QA test suites finished"
 ls -la reports || true
 
-if [[ "$ran_any" -eq 0 ]]; then
-  echo "❌ Ничего не запустилось — падаем"
-  exit 2
-fi
-
-if [[ "$failures" -gt 0 ]]; then
-  echo "❌ Есть проблемы (failures=$failures) — делаем билд красным"
+# ✅ Главное: если НЕ отработало НИ ОДНОГО suite — падаем красным
+if [[ $succeeded_any -eq 0 ]]; then
+  echo "❌ Ни один тестовый suite не завершился успешно — делаем билд FAILURE"
   exit 1
 fi
 
-echo "✔ All QA test suites finished successfully"
+# Иначе билд зелёный (даже если часть упала) — как ты хотел
+exit 0

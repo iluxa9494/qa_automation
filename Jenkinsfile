@@ -6,7 +6,10 @@ pipeline {
         maven 'Maven3'
     }
 
-    options { timestamps() }
+    options {
+        timestamps()
+        skipDefaultCheckout(true)
+    }
 
     environment {
         SELENIUM_BASE_IMAGE = 'seleniarm/standalone-chromium:latest'
@@ -20,10 +23,21 @@ pipeline {
             }
         }
 
+        stage('Preflight (Docker)') {
+            steps {
+                sh '''
+                  set -eux
+                  docker --version
+                  docker ps
+                  docker-compose --version
+                '''
+            }
+        }
+
         stage('Run all QA tests') {
             steps {
                 sh 'chmod +x run_all_qa.sh'
-                sh './run_all_qa.sh'   // ✅ если exit != 0 — билд станет RED
+                sh './run_all_qa.sh'
             }
         }
     }
