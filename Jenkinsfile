@@ -1,4 +1,3 @@
-// Jenkinsfile
 pipeline {
     agent any
 
@@ -37,42 +36,17 @@ pipeline {
             sh 'mkdir -p reports'
             archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-            // ✅ Nested публикуем как HTML
+            // ✅ Одна главная кнопка
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
                 keepAll:               true,
-                reportDir:             'reports/nested',
+                reportDir:             'reports',
                 reportFiles:           'index.html',
-                reportName:            'QA Summary (Nested)'
+                reportName:            'QA Dashboard'
             ])
 
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/formy/cucumber-html-report',
-                reportFiles:           'index.html',
-                reportName:            'UI tests (Formy)'
-            ])
-
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage',
-                reportFiles:           'cucumber.html',
-                reportName:            'DB tests'
-            ])
-
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/gatling/latest',
-                reportFiles:           'index.html',
-                reportName:            'Load tests (Gatling)'
-            ])
+            // (опционально) отдельные кнопки можно оставить — но они уже не обязательны
         }
     }
 }

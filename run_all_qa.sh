@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
+mkdir -p reports/formy reports/databaseUsage reports/gatling
 
 docker_compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -59,13 +59,13 @@ echo "▶ Checking expected report files..."
 [[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
 [[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
 
-echo "▶ Generating Nested HTML (reports/nested/index.html)..."
-cat > reports/nested/index.html <<'HTML'
+echo "▶ Generating QA Dashboard (reports/index.html)..."
+cat > reports/index.html <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>QA Summary (Nested)</title>
+  <title>QA Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
@@ -75,12 +75,12 @@ cat > reports/nested/index.html <<'HTML'
   </style>
 </head>
 <body>
-  <h1>QA Summary (Nested)</h1>
+  <h1>QA Dashboard</h1>
 
   <div class="card">
     <h2>UI tests (Formy)</h2>
     <ul>
-      <li>HTML: <a href="../formy/cucumber-html-report/index.html">open</a></li>
+      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
       <li>JSON: <code>reports/formy/cucumber.json</code></li>
     </ul>
   </div>
@@ -88,7 +88,7 @@ cat > reports/nested/index.html <<'HTML'
   <div class="card">
     <h2>DB tests</h2>
     <ul>
-      <li>HTML: <a href="../databaseUsage/cucumber.html">open</a></li>
+      <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
       <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
     </ul>
   </div>
@@ -96,18 +96,17 @@ cat > reports/nested/index.html <<'HTML'
   <div class="card">
     <h2>Load tests (Gatling)</h2>
     <ul>
-      <li>HTML: <a href="../gatling/latest/index.html">open</a></li>
+      <li>HTML: <a href="gatling/latest/index.html">open</a></li>
     </ul>
   </div>
 
   <p style="opacity:.7;margin-top:24px">
-    Если Formy/DB упали — проверь в консоли билда ошибки и наличие JSON.
+    Если Formy/DB упали — смотри консоль билда: тогда JSON/HTML могут не появиться.
   </p>
 </body>
 </html>
 HTML
 
-echo "✔ Nested index.html generated"
-
+echo "✔ reports/index.html generated"
 echo "✔ All QA test suites finished"
 ls -la reports || true
