@@ -15,11 +15,18 @@ docker_compose() {
   fi
 }
 
-echo "▶ Preflight: docker доступ"
-if ! docker ps >/dev/null 2>&1; then
-  echo "❌ Нет доступа к Docker daemon (docker.sock). Jenkins должен иметь доступ к /var/run/docker.sock." >&2
-  exit 2
-fi
+preflight() {
+  echo "▶ Preflight: docker доступ"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ docker CLI не найден в окружении Jenkins" >&2
+    exit 2
+  fi
+  if ! docker ps >/dev/null 2>&1; then
+    echo "❌ Нет доступа к Docker daemon (docker.sock). Jenkins должен иметь доступ к /var/run/docker.sock." >&2
+    exit 2
+  fi
+  docker_compose version >/dev/null 2>&1 || true
+}
 
 copy_reports_from_container() {
   local container_name="$1"
@@ -32,7 +39,7 @@ copy_reports_from_container() {
   fi
 }
 
-run_service_keep_container() {
+run_service() {
   local service="$1"
   local container_name="$2"
   local clean_dir="$3"
@@ -47,33 +54,12 @@ run_service_keep_container() {
   set -e
 
   copy_reports_from_container "$container_name"
-
-  if [[ $exit_code -ne 0 ]]; then
-    echo "⚠ $service failed (exit=$exit_code) — продолжаем"
-  else
-    echo "✔ $service OK"
-  fi
-
-  return $exit_code
+  return "$exit_code"
 }
 
-echo "▶ Building qa-tests image..."
-docker_compose build
-
-fail_count=0
-ok_count=0
-
-run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy"         && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
-run_service_keep_container "database-tests"     "qa-database-tests"        "reports/databaseUsage" && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
-run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"       && ok_count=$((ok_count+1)) || fail_count=$((fail_count+1))
-
-echo "▶ Checking expected report files..."
-[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || echo "⚠ formy cucumber.json NOT found"
-[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || echo "⚠ db cucumber.json NOT found"
-[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || echo "⚠ gatling latest/index.html NOT found"
-
-echo "▶ Generating QA Dashboard (reports/index.html)..."
-cat > reports/index.html <<'HTML'
+generate_dashboard() {
+  echo "▶ Generating QA Dashboard (reports/index.html)..."
+  cat > reports/index.html <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
@@ -115,15 +101,58 @@ cat > reports/index.html <<'HTML'
 </body>
 </html>
 HTML
+}
 
-echo "✔ reports/index.html generated"
+preflight
+
+echo "▶ Building qa-tests image..."
+docker_compose build
+
+failures=0
+ran_any=0
+
+if run_service "formy-tests" "qa-formy-tests" "reports/formy"; then
+  ran_any=1
+else
+  ran_any=1
+  failures=$((failures+1))
+  echo "⚠ formy-tests failed — продолжаем"
+fi
+
+if run_service "database-tests" "qa-database-tests" "reports/databaseUsage"; then
+  ran_any=1
+else
+  ran_any=1
+  failures=$((failures+1))
+  echo "⚠ database-tests failed — продолжаем"
+fi
+
+if run_service "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling"; then
+  ran_any=1
+else
+  ran_any=1
+  failures=$((failures+1))
+  echo "⚠ restfulbooker-load failed — продолжаем"
+fi
+
+generate_dashboard
+
+echo "▶ Checking expected report files..."
+[[ -f reports/formy/cucumber.json ]] && echo "   ✔ formy cucumber.json" || { echo "❌ formy cucumber.json NOT found"; failures=$((failures+1)); }
+[[ -f reports/databaseUsage/cucumber.json ]] && echo "   ✔ db cucumber.json" || { echo "❌ db cucumber.json NOT found"; failures=$((failures+1)); }
+[[ -f reports/gatling/latest/index.html ]] && echo "   ✔ gatling latest/index.html" || { echo "❌ gatling latest/index.html NOT found"; failures=$((failures+1)); }
+
+echo "📊 Reports directory:"
 ls -la reports || true
 
-# ✅ Правило фейла: если все suites упали — билд красный
-if [[ $ok_count -eq 0 ]]; then
-  echo "❌ Все тестовые наборы упали/не запустились. fail_count=$fail_count"
+if [[ "$ran_any" -eq 0 ]]; then
+  echo "❌ Ничего не запустилось — падаем"
+  exit 2
+fi
+
+if [[ "$failures" -gt 0 ]]; then
+  echo "❌ Есть проблемы (failures=$failures) — делаем билд красным"
   exit 1
 fi
 
-echo "✔ Done. ok_count=$ok_count fail_count=$fail_count"
-exit 0
+echo "✔ All QA test suites finished successfully"
