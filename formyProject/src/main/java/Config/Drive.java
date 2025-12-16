@@ -3,12 +3,6 @@ package Config;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-
-import org.openqa.selenium.edge.EdgeDriver;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
-import org.openqa.selenium.safari.SafariDriver;
-
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 
@@ -30,15 +24,9 @@ public class Drive {
         }
 
         String driverType = prop.getProperty("driverType", "chrome");
-
-        // 1) url берём из пропертей, а если нет — из env FORMY_BASE_URL
         String url = prop.getProperty("url");
-        if (url == null || url.isBlank()) {
-            url = System.getenv().getOrDefault("FORMY_BASE_URL", "https://formy-project.herokuapp.com");
-        }
 
         switch (driverType) {
-
             case "chrome": {
                 String chromeDriverPath =
                         System.getenv().getOrDefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver");
@@ -60,25 +48,6 @@ public class Drive {
                 driver = new ChromeDriver(options);
                 break;
             }
-
-            case "firefox": {
-                FirefoxOptions options = new FirefoxOptions();
-                options.addArguments("-headless");
-                driver = new FirefoxDriver(options);
-                break;
-            }
-
-            case "edge": {
-                driver = new EdgeDriver();
-                break;
-            }
-
-            case "safari": {
-                driver = new SafariDriver();
-                driver.manage().window().maximize();
-                break;
-            }
-
             default:
                 throw new RuntimeException("Unsupported driverType: " + driverType);
         }
@@ -87,13 +56,8 @@ public class Drive {
         driver.get(url);
     }
 
-    // Alias на случай старых вызовов
-    public void stopTest() {
-        StopTest();
-    }
-
     @AfterSuite(alwaysRun = true)
-    public void StopTest() {
+    public void stopTest() {
         if (driver != null) {
             driver.quit();
             driver = null;
