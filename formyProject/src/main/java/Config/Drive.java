@@ -30,12 +30,16 @@ public class Drive {
         }
 
         String driverType = prop.getProperty("driverType", "chrome");
+
+        // 1) url берём из пропертей, а если нет — из env FORMY_BASE_URL
         String url = prop.getProperty("url");
+        if (url == null || url.isBlank()) {
+            url = System.getenv().getOrDefault("FORMY_BASE_URL", "https://formy-project.herokuapp.com");
+        }
 
         switch (driverType) {
 
             case "chrome": {
-                // ✅ НЕ используем WebDriverManager в Docker
                 String chromeDriverPath =
                         System.getenv().getOrDefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver");
                 System.setProperty("webdriver.chrome.driver", chromeDriverPath);
@@ -46,11 +50,8 @@ public class Drive {
                 options.addArguments("--disable-dev-shm-usage");
                 options.addArguments("--disable-gpu");
                 options.addArguments("--window-size=1920,1080");
-
-                // иногда помогает на некоторых сборках chromium
                 options.addArguments("--remote-allow-origins=*");
 
-                // если нужно явно указать chromium
                 String chromeBin = System.getenv("CHROME_BIN");
                 if (chromeBin != null && !chromeBin.isBlank()) {
                     options.setBinary(chromeBin);
@@ -86,7 +87,11 @@ public class Drive {
         driver.get(url);
     }
 
-    // ✅ ВАЖНО: оставляем именно такое имя, потому что в Steps уже есть вызов drivePage.StopTest()
+    // Alias на случай старых вызовов
+    public void stopTest() {
+        StopTest();
+    }
+
     @AfterSuite(alwaysRun = true)
     public void StopTest() {
         if (driver != null) {
