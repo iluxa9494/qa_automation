@@ -1,3 +1,6 @@
+# docker-compose.yml
+name: qa_automation
+
 networks:
   qa-net:
     driver: bridge
@@ -23,8 +26,8 @@ services:
         Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
 
         cd /app/formyProject;
-        mvn -B test \
-          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report' \
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report'
           -Dsurefire.reportsDirectory=/reports/formy/surefire
       "
     restart: "no"
@@ -79,8 +82,8 @@ services:
         mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
         cd /app/databaseUsage;
 
-        mvn -B test \
-          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html' \
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html'
           -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
       "
     restart: "no"

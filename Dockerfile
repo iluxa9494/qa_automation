@@ -5,13 +5,11 @@ FROM ${SELENIUM_BASE_IMAGE}
 USER root
 WORKDIR /app
 
-# Java 17 (JDK) + Maven + Xvfb + libs для AWT/ImageIO/Galen
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
        xvfb \
        maven \
        openjdk-17-jdk-headless \
-       # --- runtime libs (AWT/X11 + часто нужные для headless) ---
        libxaw7 libx11-6 libxext6 libxi6 libxtst6 libxrender1 libxrandr2 \
        libxcomposite1 libxdamage1 libxfixes3 libxcb1 libxss1 \
        libasound2 libcups2 libdrm2 libgbm1 \
@@ -19,7 +17,6 @@ RUN apt-get update \
        libnss3 libnspr4 fonts-liberation \
   && rm -rf /var/lib/apt/lists/*
 
-# JAVA_HOME (точно JDK)
 RUN set -eux; \
     JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
     JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
@@ -27,13 +24,11 @@ RUN set -eux; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
-# reports writable
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
 
 ENV DISPLAY=:99
 ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
-# ВАЖНО: копируем именно текущий репозиторий, НЕ ".."
 COPY . .
 
 RUN chown -R seluser:seluser /app

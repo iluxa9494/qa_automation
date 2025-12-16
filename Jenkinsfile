@@ -28,8 +28,8 @@ pipeline {
                 sh '''
                   set -eux
                   docker --version
+                  docker compose version
                   docker ps
-                  docker-compose --version
                 '''
             }
         }

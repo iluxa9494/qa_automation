@@ -47,9 +47,9 @@ run_service_keep_container() {
 echo "▶ Building qa-tests image..."
 docker_compose build
 
-rc_formy="$(run_service_keep_container "formy-tests"        "qa-formy-tests"           "reports/formy")"
-rc_db="$(run_service_keep_container    "database-tests"     "qa-database-tests"        "reports/databaseUsage")"
-rc_gatling="$(run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker" "reports/gatling")"
+rc_formy="$(run_service_keep_container "formy-tests"         "qa-formy-tests"            "reports/formy")"
+rc_db="$(run_service_keep_container     "database-tests"      "qa-database-tests"         "reports/databaseUsage")"
+rc_gatling="$(run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker"  "reports/gatling")"
 
 echo "▶ Exit codes: formy=$rc_formy db=$rc_db gatling=$rc_gatling"
 
@@ -110,14 +110,11 @@ HTML
 echo "✔ reports/index.html generated"
 ls -la reports || true
 
-# Финальная логика статуса билда:
-# 1) если ничего не сгенерилось — fail
 if [[ $formy_ok -eq 0 && $db_ok -eq 0 && $gatling_ok -eq 0 ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi
 
-# 2) если хоть один suite упал — fail (но остальные уже успели выполниться)
 if [[ "$rc_formy" != "0" || "$rc_db" != "0" || "$rc_gatling" != "0" ]]; then
   echo "❌ One or more suites failed — failing build"
   exit 11
