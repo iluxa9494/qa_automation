@@ -2,6 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# ✅ защита от параллельных запусков (вдруг кто-то нажмёт кнопку 2 раза)
+LOCK_FILE="/tmp/qa_automation.lock"
+exec 200>"$LOCK_FILE"
+flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
+
 mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
 
 docker_compose() {
@@ -15,53 +20,39 @@ docker_compose() {
   fi
 }
 
-copy_reports_from_container() {
-  local container_name="$1"
-  if docker ps -a --format '{{.Names}}' | grep -qx "$container_name"; then
-    echo "▶ Copying reports from $container_name:/reports -> ./reports ..."
-    docker cp "${container_name}:/reports/." "reports/" 2>/dev/null || true
-    docker rm -f "$container_name" >/dev/null 2>&1 || true
-  else
-    echo "⚠ Container $container_name not found — nothing to copy"
-  fi
+cleanup() {
+  docker_compose down --remove-orphans >/dev/null 2>&1 || true
 }
+trap cleanup EXIT
 
-run_service_keep_container() {
+run_service() {
   local service="$1"
-  local container_name="$2"
-  local clean_dir="$3"
-
-  docker rm -f "$container_name" >/dev/null 2>&1 || true
-  rm -rf "$clean_dir" && mkdir -p "$clean_dir"
-
+  echo "▶ Running: $service"
   set +e
   docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
-  local exit_code=$?
+  local rc=$?
   set -e
-
-  copy_reports_from_container "$container_name"
-
-  echo "$exit_code"
+  echo "✔ $service finished with rc=$rc"
+  return "$rc"
 }
 
-echo "▶ Building qa-tests image..."
-docker_compose build
+echo "▶ Pulling latest QA image..."
+docker_compose pull || true
 
-rc_formy="$(run_service_keep_container "formy-tests"         "qa-formy-tests"            "reports/formy")"
-rc_db="$(run_service_keep_container     "database-tests"      "qa-database-tests"         "reports/databaseUsage")"
-rc_gatling="$(run_service_keep_container "restfulbooker-load" "qa-gatling-restfulbooker"  "reports/gatling")"
+# DB всегда подняты на время прогона
+echo "▶ Starting DB dependencies..."
+docker_compose up -d mongo mysql
+
+echo "▶ Running suites sequentially..."
+rc_formy=0
+rc_db=0
+rc_gatling=0
+
+if ! run_service "formy-tests"; then rc_formy=$?; fi
+if ! run_service "database-tests"; then rc_db=$?; fi
+if ! run_service "restfulbooker-load"; then rc_gatling=$?; fi
 
 echo "▶ Exit codes: formy=$rc_formy db=$rc_db gatling=$rc_gatling"
-
-echo "▶ Checking expected report files..."
-formy_ok=0; db_ok=0; gatling_ok=0
-[[ -f reports/formy/cucumber.json ]] && formy_ok=1
-[[ -f reports/databaseUsage/cucumber.json ]] && db_ok=1
-[[ -f reports/gatling/latest/index.html ]] && gatling_ok=1
-
-echo "   formy cucumber.json: $([[ $formy_ok -eq 1 ]] && echo OK || echo MISSING)"
-echo "   db cucumber.json:    $([[ $db_ok -eq 1 ]] && echo OK || echo MISSING)"
-echo "   gatling index.html:  $([[ $gatling_ok -eq 1 ]] && echo OK || echo MISSING)"
 
 echo "▶ Generating QA Dashboard (reports/index.html)..."
 cat > reports/index.html <<'HTML'
@@ -110,7 +101,8 @@ HTML
 echo "✔ reports/index.html generated"
 ls -la reports || true
 
-if [[ $formy_ok -eq 0 && $db_ok -eq 0 && $gatling_ok -eq 0 ]]; then
+# если отчётов вообще нет — фейлим
+if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi
