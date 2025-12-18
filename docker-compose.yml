@@ -10,7 +10,9 @@ services:
     build:
       context: .
       args:
-        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-selenium/standalone-chromium:latest}
+        # было: selenium/standalone-chromium:latest (Docker Hub)
+        # стало: зеркало в GHCR
+        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-ghcr.io/${GHCR_OWNER:-iluxa9494}/mirror-selenium-standalone-chromium:latest}
     image: qa-tests
     container_name: qa-formy-tests
     networks: [qa-net]
@@ -33,7 +35,8 @@ services:
     restart: "no"
 
   mongo:
-    image: mongo:7
+    # было: mongo:7 (Docker Hub)
+    image: ${MONGO_IMAGE:-ghcr.io/${GHCR_OWNER:-iluxa9494}/mirror-mongo:7}
     container_name: qa-mongo
     networks: [qa-net]
     healthcheck:
@@ -43,7 +46,8 @@ services:
       retries: 30
 
   mysql:
-    image: mysql:8.0
+    # было: mysql:8.0 (Docker Hub)
+    image: ${MYSQL_IMAGE:-ghcr.io/${GHCR_OWNER:-iluxa9494}/mirror-mysql:8.0}
     container_name: qa-mysql
     networks: [qa-net]
     environment:

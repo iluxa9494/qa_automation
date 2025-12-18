@@ -1,18 +1,17 @@
 # Dockerfile
-ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
+# было: selenium/standalone-chromium:latest (Docker Hub)
+# стало: зеркало в GHCR (переопределяется из compose)
+ARG SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest
 FROM ${SELENIUM_BASE_IMAGE}
 
 USER root
 WORKDIR /app
 
-# --- helper: install package if it exists ---
-# (чтобы не падать на разных базах: Ubuntu/Debian, t64/не t64)
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates curl; \
     \
     pick_pkg() { \
-      # usage: pick_pkg pkg_t64 pkg_legacy
       if apt-cache show "$1" >/dev/null 2>&1; then echo "$1"; else echo "$2"; fi; \
     }; \
     \
@@ -34,7 +33,6 @@ RUN set -eux; \
     \
     rm -rf /var/lib/apt/lists/*
 
-# JAVA_HOME (точно JDK)
 RUN set -eux; \
     JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
     JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
@@ -42,13 +40,11 @@ RUN set -eux; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
-# reports writable
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
 
 ENV DISPLAY=:99
 ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
-# копируем репо внутрь образа (чтобы run_all_qa.sh был внутри)
 COPY . .
 
 RUN chown -R seluser:seluser /app
