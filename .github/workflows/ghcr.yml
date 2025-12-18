@@ -1,90 +1,45 @@
-  pipeline {
-    agent any
+name: Build and push qa_automation image to GHCR
 
-    tools {
-    jdk   'JDK17'
-    maven 'Maven3'
-    }
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
 
-    options {
-    timestamps()
-    skipDefaultCheckout(true)
-    
-    disableConcurrentBuilds()                 // ✅ запрет параллельных запусков
-  timeout(time: 6, unit: 'HOURS')           // ✅ чтобы не зависало навсегда
-    buildDiscarder(logRotator(
-  numToKeepStr: '30',
-  artifactNumToKeepStr: '30'
-    ))
-  }
+permissions:
+  contents: read
+  packages: write
 
-    stages {
-    stage('Checkout') {
-    steps {
-  git branch: 'main',
-                url: 'https://github.com/iluxa9494/qa_automation.git'
-  }
-  }
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/qa_automation
 
-    stage('Preflight (Docker)') {
-    steps {
-    sh '''
-    set -eux
-    docker --version
-    docker compose version
-    docker ps
-    '''
-            }
-        }
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        stage('Run all QA tests (sequential, safe)') {
-    steps {
-    sh 'chmod +x run_all_qa.sh'
-    sh './run_all_qa.sh'
-  }
-  }
-  }
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-    post {
-    always {
-    sh 'mkdir -p reports'
-  archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  publishHTML(target: [
-    allowMissing:          true,
-    alwaysLinkToLastBuild: true,
-    keepAll:               true,
-    reportDir:             'reports',
-    reportFiles:           'index.html',
-    reportName:            'QA Dashboard'
-  ])
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-  publishHTML(target: [
-    allowMissing:          true,
-    alwaysLinkToLastBuild: true,
-    keepAll:               true,
-    reportDir:             'reports/formy/cucumber-html-report',
-    reportFiles:           'index.html',
-    reportName:            'UI tests (Formy)'
-  ])
-
-  publishHTML(target: [
-    allowMissing:          true,
-    alwaysLinkToLastBuild: true,
-    keepAll:               true,
-    reportDir:             'reports/databaseUsage',
-    reportFiles:           'cucumber.html',
-    reportName:            'DB tests'
-  ])
-
-  publishHTML(target: [
-    allowMissing:          true,
-    alwaysLinkToLastBuild: true,
-    keepAll:               true,
-    reportDir:             'reports/gatling/latest',
-    reportFiles:           'index.html',
-    reportName:            'Load tests (Gatling)'
-  ])
-  }
-  }
-  }
+      - name: Build and push (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}

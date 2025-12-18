@@ -9,10 +9,13 @@ pipeline {
     options {
         timestamps()
         skipDefaultCheckout(true)
-    }
 
-    environment {
-        SELENIUM_BASE_IMAGE = 'selenium/standalone-chromium:latest'
+        disableConcurrentBuilds()                 // ✅ запрет параллельных запусков
+        timeout(time: 6, unit: 'HOURS')           // ✅ чтобы не зависало навсегда
+        buildDiscarder(logRotator(
+            numToKeepStr: '30',
+            artifactNumToKeepStr: '30'
+        ))
     }
 
     stages {
@@ -34,7 +37,7 @@ pipeline {
             }
         }
 
-        stage('Run all QA tests') {
+        stage('Run all QA tests (sequential, safe)') {
             steps {
                 sh 'chmod +x run_all_qa.sh'
                 sh './run_all_qa.sh'
