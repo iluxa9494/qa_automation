@@ -1,11 +1,15 @@
 # Dockerfile
-# было: selenium/standalone-chromium:latest (Docker Hub)
-# стало: зеркало в GHCR (переопределяется из compose)
-ARG SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest
+# Default base: selenium/standalone-chromium (Docker Hub)
+# You can override it in CI or on VPS:
+#   docker build --build-arg SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest .
+
+ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 FROM ${SELENIUM_BASE_IMAGE}
 
 USER root
 WORKDIR /app
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
     apt-get update; \
@@ -31,7 +35,8 @@ RUN set -eux; \
       "${A_ATK1}" "${A_ATKBR}" "${A_GTK3}" \
       libnss3 libnspr4 fonts-liberation; \
     \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*; \
+    apt-get clean
 
 RUN set -eux; \
     JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
