@@ -1,90 +1,58 @@
-pipeline {
-    agent any
+# Dockerfile
+# Default base: selenium/standalone-chromium (Docker Hub)
+# You can override it in CI or on VPS:
+#   docker build --build-arg SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest .
 
-    tools {
-        jdk   'JDK17'
-        maven 'Maven3'
-    }
+ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
+FROM ${SELENIUM_BASE_IMAGE}
 
-    options {
-        timestamps()
-        skipDefaultCheckout(true)
+USER root
+WORKDIR /app
 
-        disableConcurrentBuilds()                 // ✅ запрет параллельных запусков
-        timeout(time: 6, unit: 'HOURS')           // ✅ чтобы не зависало навсегда
-        buildDiscarder(logRotator(
-            numToKeepStr: '30',
-            artifactNumToKeepStr: '30'
-        ))
-    }
+ENV DEBIAN_FRONTEND=noninteractive
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/iluxa9494/qa_automation.git'
-            }
-        }
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl; \
+    \
+    pick_pkg() { \
+      if apt-cache show "$1" >/dev/null 2>&1; then echo "$1"; else echo "$2"; fi; \
+    }; \
+    \
+    A_SOUND="$(pick_pkg libasound2t64 libasound2)"; \
+    A_ATK1="$(pick_pkg libatk1.0-0t64 libatk1.0-0)"; \
+    A_ATKBR="$(pick_pkg libatk-bridge2.0-0t64 libatk-bridge2.0-0)"; \
+    A_CUPS="$(pick_pkg libcups2t64 libcups2)"; \
+    A_GTK3="$(pick_pkg libgtk-3-0t64 libgtk-3-0)"; \
+    \
+    apt-get install -y --no-install-recommends \
+      xvfb \
+      maven \
+      openjdk-17-jdk-headless \
+      libxaw7 libx11-6 libxext6 libxi6 libxtst6 libxrender1 libxrandr2 \
+      libxcomposite1 libxdamage1 libxfixes3 libxcb1 libxss1 \
+      "${A_SOUND}" "${A_CUPS}" libdrm2 libgbm1 \
+      "${A_ATK1}" "${A_ATKBR}" "${A_GTK3}" \
+      libnss3 libnspr4 fonts-liberation; \
+    \
+    rm -rf /var/lib/apt/lists/*; \
+    apt-get clean
 
-        stage('Preflight (Docker)') {
-            steps {
-                sh '''
-                  set -eux
-                  docker --version
-                  docker compose version
-                  docker ps
-                '''
-            }
-        }
+RUN set -eux; \
+    JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
+    JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
+    echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
+    echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
+    echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
-        stage('Run all QA tests (sequential, safe)') {
-            steps {
-                sh 'chmod +x run_all_qa.sh'
-                sh './run_all_qa.sh'
-            }
-        }
-    }
+RUN mkdir -p /reports && chown -R seluser:seluser /reports
 
-    post {
-        always {
-            sh 'mkdir -p reports'
-            archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
+ENV DISPLAY=:99
+ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
 
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports',
-                reportFiles:           'index.html',
-                reportName:            'QA Dashboard'
-            ])
+COPY . .
 
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/formy/cucumber-html-report',
-                reportFiles:           'index.html',
-                reportName:            'UI tests (Formy)'
-            ])
+RUN chown -R seluser:seluser /app
+USER seluser
 
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage',
-                reportFiles:           'cucumber.html',
-                reportName:            'DB tests'
-            ])
-
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/gatling/latest',
-                reportFiles:           'index.html',
-                reportName:            'Load tests (Gatling)'
-            ])
-        }
-    }
-}
+CMD ["bash", "-lc", "echo 'Use docker compose services to run tests'"]
