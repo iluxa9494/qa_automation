@@ -78,3 +78,6 @@ reports/formy
 # build outputs
 **/target/
 **/*.class
+
+# compose file
+compose
