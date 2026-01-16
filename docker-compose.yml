@@ -26,6 +26,7 @@ services:
     restart: unless-stopped
     mem_limit: "700m"
     cpus: "0.75"
+    entrypoint: ["bash", "-lc", "rm -f /var/run/mysqld/*.sock /var/run/mysqld/*.pid || true; exec /usr/local/bin/docker-entrypoint.sh mysqld --mysqlx=0"]
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: test
