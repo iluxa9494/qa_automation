@@ -39,6 +39,11 @@ jobs:
           chmod +x ./run_all_qa.sh
           ./run_all_qa.sh
 
+      - name: Install rsync
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y rsync
+
       - name: Sync reports to VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
