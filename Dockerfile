@@ -4,6 +4,24 @@
 #   docker build --build-arg SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest .
 
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
+ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
+
+FROM ${BUILDER_IMAGE} AS builder
+WORKDIR /app
+
+COPY . .
+
+RUN set -eux; \
+    mvn -B -q -f formyProject/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f formyProject/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=formyProject/target/deps; \
+    mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f databaseUsage/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=databaseUsage/target/deps; \
+    mvn -B -q -f restfulBookerLoad/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f restfulBookerLoad/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=restfulBookerLoad/target/deps
+
 FROM ${SELENIUM_BASE_IMAGE}
 
 USER root
@@ -27,8 +45,7 @@ RUN set -eux; \
     \
     apt-get install -y --no-install-recommends \
       xvfb \
-      maven \
-      openjdk-17-jdk-headless \
+      openjdk-17-jre-headless \
       libxaw7 libx11-6 libxext6 libxi6 libxtst6 libxrender1 libxrandr2 \
       libxcomposite1 libxdamage1 libxfixes3 libxcb1 libxss1 \
       "${A_SOUND}" "${A_CUPS}" libdrm2 libgbm1 \
@@ -39,20 +56,24 @@ RUN set -eux; \
     apt-get clean
 
 RUN set -eux; \
-    JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
-    JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
+    JAVA_BIN="$(readlink -f "$(command -v java)")"; \
+    JAVA_HOME_DIR="$(dirname "$(dirname "$JAVA_BIN")")"; \
     echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
     echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
     echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
+COPY --from=builder /app/formyProject /app/formyProject
+COPY --from=builder /app/databaseUsage /app/databaseUsage
+COPY --from=builder /app/restfulBookerLoad /app/restfulBookerLoad
+COPY --from=builder /app/tools /app/tools
+
+RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
+RUN chown -R seluser:seluser /app
 
 ENV DISPLAY=:99
-ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
+ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
-COPY . .
-
-RUN chown -R seluser:seluser /app
 USER seluser
 
 CMD ["bash", "-lc", "echo 'Use docker compose services to run tests'"]

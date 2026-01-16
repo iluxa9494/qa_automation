@@ -1,0 +1,47 @@
+name: Monthly QA Run
+
+on:
+  schedule:
+    - cron: "0 3 1 * *" # monthly on the 1st at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare host path for docker volumes
+        run: |
+          sudo mkdir -p /home/pet_projects
+          if [ ! -e /home/pet_projects/qa_automation ]; then
+            sudo ln -s "$GITHUB_WORKSPACE" /home/pet_projects/qa_automation
+          fi
+          mkdir -p reports
+
+      - name: Docker login (GHCR)
+        if: ${{ secrets.GHCR_TOKEN != '' }}
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Run all QA tests
+        run: |
+          chmod +x ./run_all_qa.sh
+          ./run_all_qa.sh
+
+      - name: Sync reports to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ] || [ -z "$VPS_SSH_KEY" ]; then
+            echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
+            exit 1
+          fi
+          echo "$VPS_SSH_KEY" > /tmp/vps_key
+          chmod 600 /tmp/vps_key
+          rsync -az --delete -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            reports/ "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/"

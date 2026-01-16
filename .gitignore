@@ -81,3 +81,10 @@ reports/formy
 
 # compose file
 compose
+
+# local scripts and services
+bootstrap.sh
+bootstrap_qa_automation.sh
+mysql/
+nginx/
+run_qa_sequential.sh
