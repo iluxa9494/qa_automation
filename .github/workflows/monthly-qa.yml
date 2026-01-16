@@ -45,15 +45,13 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          if ! command -v rsync >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y rsync
-          fi
           if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ] || [ -z "$VPS_SSH_KEY" ]; then
             echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
             exit 1
           fi
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
-          rsync -az --delete -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
-            reports/ "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/"
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
+            "mkdir -p /home/pet_projects/qa_automation/reports && rm -rf /home/pet_projects/qa_automation/reports/*"
+          scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
+            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/"
