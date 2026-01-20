@@ -31,7 +31,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates curl; \
+    apt-get install -y --no-install-recommends ca-certificates curl python3; \
     \
     pick_pkg() { \
       if apt-cache show "$1" >/dev/null 2>&1; then echo "$1"; else echo "$2"; fi; \
@@ -68,6 +68,8 @@ COPY --from=builder /app/restfulBookerLoad /app/restfulBookerLoad
 COPY --from=builder /app/tools /app/tools
 
 RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
+COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
+RUN chmod +x /entrypoint-qa-dashboard.sh
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
 RUN chown -R seluser:seluser /app
 
@@ -76,4 +78,4 @@ ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
 USER seluser
 
-CMD ["bash", "-lc", "echo 'Use docker compose services to run tests'"]
+CMD ["/entrypoint-qa-dashboard.sh"]
