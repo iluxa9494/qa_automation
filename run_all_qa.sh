@@ -9,15 +9,68 @@ flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 
 mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
 
-docker_compose() {
+# ---------------------------
+# Docker Compose wrapper
+# ---------------------------
+
+detect_compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
-    docker compose "$@"
+    echo "docker compose"
   elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose "$@"
+    echo "docker-compose"
   else
-    echo "❌ Docker Compose не установлен." >&2
-    exit 1
+    echo ""
   fi
+}
+
+pick_compose_file() {
+  # 1) explicit
+  if [[ -n "${COMPOSE_FILE:-}" ]]; then
+    echo "$COMPOSE_FILE"
+    return 0
+  fi
+
+  # 2) autodetect (CI-first)
+  local candidates=(
+    "docker-compose.ci.yml"
+    "docker-compose.ci.yaml"
+    "docker-compose.yml"
+    "docker-compose.yaml"
+    "compose.yml"
+    "compose.yaml"
+  )
+
+  local f
+  for f in "${candidates[@]}"; do
+    if [[ -f "$f" ]]; then
+      echo "$f"
+      return 0
+    fi
+  done
+
+  echo ""
+}
+
+COMPOSE_CMD="$(detect_compose_cmd)"
+if [[ -z "$COMPOSE_CMD" ]]; then
+  echo "❌ Docker Compose не установлен." >&2
+  exit 1
+fi
+
+COMPOSE_FILE_RESOLVED="$(pick_compose_file)"
+if [[ -z "$COMPOSE_FILE_RESOLVED" ]]; then
+  echo "❌ Compose file not found. Expected one of:" >&2
+  echo "   - docker-compose.ci.yml (recommended for GitHub Actions)" >&2
+  echo "   - docker-compose.yml / compose.yml / compose.yaml" >&2
+  echo "   Or set COMPOSE_FILE env var." >&2
+  exit 1
+fi
+
+echo "▶ Using compose: $COMPOSE_CMD -f $COMPOSE_FILE_RESOLVED"
+
+docker_compose() {
+  # shellcheck disable=SC2086
+  $COMPOSE_CMD -f "$COMPOSE_FILE_RESOLVED" "$@"
 }
 
 cleanup() {
@@ -28,10 +81,12 @@ trap cleanup EXIT
 run_service() {
   local service="$1"
   echo "▶ Running: $service"
+
   set +e
   docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
   local rc=$?
   set -e
+
   echo "✔ $service finished with rc=$rc"
   return "$rc"
 }
@@ -48,9 +103,23 @@ rc_formy=0
 rc_db=0
 rc_gatling=0
 
-if ! run_service "formy-tests"; then rc_formy=$?; fi
-if ! run_service "database-tests"; then rc_db=$?; fi
-if ! run_service "restfulbooker-load"; then rc_gatling=$?; fi
+if run_service "formy-tests"; then
+  rc_formy=0
+else
+  rc_formy=$?
+fi
+
+if run_service "database-tests"; then
+  rc_db=0
+else
+  rc_db=$?
+fi
+
+if run_service "restfulbooker-load"; then
+  rc_gatling=0
+else
+  rc_gatling=$?
+fi
 
 echo "▶ Exit codes: formy=$rc_formy db=$rc_db gatling=$rc_gatling"
 
