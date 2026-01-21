@@ -39,7 +39,7 @@ jobs:
           chmod +x ./run_all_qa.sh
           ./run_all_qa.sh
 
-      - name: Sync reports to VPS
+      - name: Sync reports to VPS (versioned)
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -49,9 +49,37 @@ jobs:
             echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
             exit 1
           fi
+
+          RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
+          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
+
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
-            "mkdir -p /home/pet_projects/qa_automation/reports && rm -rf /home/pet_projects/qa_automation/reports/*"
+            "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
+
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
-            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/"
+            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
+
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
+            "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
+
+      - name: Trigger Jenkins ingest
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
+        run: |
+          if [ -z "$JENKINS_URL" ] || [ -z "$JENKINS_USER" ] || [ -z "$JENKINS_API_TOKEN" ]; then
+            echo "Missing Jenkins secrets (JENKINS_URL/JENKINS_USER/JENKINS_API_TOKEN)."
+            exit 1
+          fi
+
+          if [ -z "${RUN_ID:-}" ]; then
+            echo "RUN_ID is empty. Previous step didn't export it to GITHUB_ENV."
+            exit 2
+          fi
+
+          curl -sS -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
+            -X POST "$JENKINS_URL/job/qa_automation_ingest/buildWithParameters?RUN_ID=${RUN_ID}"
