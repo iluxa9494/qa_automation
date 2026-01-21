@@ -2,16 +2,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# ✅ защита от параллельных запусков (вдруг кто-то нажмёт кнопку 2 раза)
 LOCK_FILE="/tmp/qa_automation.lock"
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 
 mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
-
-# ---------------------------
-# Docker Compose wrapper
-# ---------------------------
 
 detect_compose_cmd() {
   if docker compose version >/dev/null 2>&1; then
@@ -24,13 +19,11 @@ detect_compose_cmd() {
 }
 
 pick_compose_file() {
-  # 1) explicit
   if [[ -n "${COMPOSE_FILE:-}" ]]; then
     echo "$COMPOSE_FILE"
     return 0
   fi
 
-  # 2) autodetect (CI-first)
   local candidates=(
     "docker-compose.ci.yml"
     "docker-compose.ci.yaml"
@@ -59,10 +52,7 @@ fi
 
 COMPOSE_FILE_RESOLVED="$(pick_compose_file)"
 if [[ -z "$COMPOSE_FILE_RESOLVED" ]]; then
-  echo "❌ Compose file not found. Expected one of:" >&2
-  echo "   - docker-compose.ci.yml (recommended for GitHub Actions)" >&2
-  echo "   - docker-compose.yml / compose.yml / compose.yaml" >&2
-  echo "   Or set COMPOSE_FILE env var." >&2
+  echo "❌ Compose file not found. Expected docker-compose.ci.yml (or set COMPOSE_FILE)." >&2
   exit 1
 fi
 
@@ -78,50 +68,40 @@ cleanup() {
 }
 trap cleanup EXIT
 
-run_service() {
-  local service="$1"
-  echo "▶ Running: $service"
-
-  set +e
-  docker_compose up --no-deps --abort-on-container-exit --exit-code-from "$service" "$service"
-  local rc=$?
-  set -e
-
-  echo "✔ $service finished with rc=$rc"
-  return "$rc"
+list_services() {
+  docker_compose config --services 2>/dev/null || true
 }
 
-echo "▶ Pulling latest QA image..."
+service_exists() {
+  local s="$1"
+  list_services | grep -qx "$s"
+}
+
+echo "▶ Compose services detected:"
+SERVICES="$(list_services)"
+if [[ -z "$SERVICES" ]]; then
+  echo "❌ Could not read services from compose. Check $COMPOSE_FILE_RESOLVED is valid." >&2
+  exit 1
+fi
+echo "$SERVICES" | sed 's/^/ - /'
+
+# sanity checks for your current compose
+service_exists "qa_automation" || { echo "❌ service qa_automation not found in compose"; exit 1; }
+service_exists "mysql"        || { echo "❌ service mysql not found in compose"; exit 1; }
+service_exists "mongodb"      || { echo "❌ service mongodb not found in compose"; exit 1; }
+
+echo "▶ Pulling latest images..."
 docker_compose pull || true
 
-# DB всегда подняты на время прогона
 echo "▶ Starting DB dependencies..."
-docker_compose up -d mongo mysql
+docker_compose up -d mysql mongodb
 
-echo "▶ Running suites sequentially..."
-rc_formy=0
-rc_db=0
-rc_gatling=0
-
-if run_service "formy-tests"; then
-  rc_formy=0
-else
-  rc_formy=$?
-fi
-
-if run_service "database-tests"; then
-  rc_db=0
-else
-  rc_db=$?
-fi
-
-if run_service "restfulbooker-load"; then
-  rc_gatling=0
-else
-  rc_gatling=$?
-fi
-
-echo "▶ Exit codes: formy=$rc_formy db=$rc_db gatling=$rc_gatling"
+echo "▶ Running qa_automation container (will execute all suites inside)..."
+set +e
+docker_compose up --no-deps --abort-on-container-exit --exit-code-from qa_automation qa_automation
+rc=$?
+set -e
+echo "✔ qa_automation finished with rc=$rc"
 
 echo "▶ Generating QA Dashboard (reports/index.html)..."
 cat > reports/index.html <<'HTML'
@@ -166,7 +146,6 @@ cat > reports/index.html <<'HTML'
 </body>
 </html>
 HTML
-
 echo "✔ reports/index.html generated"
 ls -la reports || true
 
@@ -176,8 +155,9 @@ if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.js
   exit 10
 fi
 
-if [[ "$rc_formy" != "0" || "$rc_db" != "0" || "$rc_gatling" != "0" ]]; then
-  echo "❌ One or more suites failed — failing build"
+# Если контейнер вернул ошибку — фейлим workflow (но отчёты уже синкнутся)
+if [[ "$rc" != "0" ]]; then
+  echo "❌ qa_automation failed (rc=$rc) — failing build"
   exit 11
 fi
 
