@@ -34,10 +34,45 @@ jobs:
             echo "GHCR_TOKEN not set; skipping login"
           fi
 
-      - name: Run all QA tests
+      - name: Run all QA tests (docker compose)
+        env:
+          QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
         run: |
-          chmod +x ./run_all_qa.sh
-          ./run_all_qa.sh
+          set -euo pipefail
+
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+
+          docker compose -f docker-compose.ci.yml pull || true
+
+          echo "▶ Starting DB dependencies..."
+          docker compose -f docker-compose.ci.yml up -d mysql mongodb
+
+          echo "▶ Running qa_automation..."
+          set +e
+          docker compose -f docker-compose.ci.yml up --no-deps --abort-on-container-exit --exit-code-from qa_automation qa_automation
+          rc=$?
+          set -e
+
+          echo "✔ qa_automation finished with rc=$rc"
+          echo "▶ Reports on host:"
+          ls -la reports || true
+
+          echo "▶ Cleanup..."
+          docker compose -f docker-compose.ci.yml down --remove-orphans || true
+
+          # если отчётов вообще нет — фейлим
+          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html ]]; then
+            echo "❌ No reports generated at all — failing build"
+            exit 10
+          fi
+
+          # Если контейнер вернул ошибку — фейлим workflow (но отчёты уже есть)
+          if [[ "$rc" != "0" ]]; then
+            echo "❌ qa_automation failed (rc=$rc) — failing build"
+            exit 11
+          fi
+
+          echo "✔ All QA test suites finished successfully"
 
       - name: Sync reports to VPS (versioned)
         env:
