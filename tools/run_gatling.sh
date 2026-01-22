@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_DIR="/app/restfulBookerLoad"
-REPORT_DIR="/reports/gatling"
+BASE_DIR="/app/restfulBookerLoad"
+MODULE_DIR="${BASE_DIR}"
+if [[ -d "${BASE_DIR}/restfulBookerLoad" ]]; then
+  MODULE_DIR="${BASE_DIR}/restfulBookerLoad"
+fi
+
+REPORT_DIR="${REPORTS_DIR:-/reports}/gatling"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_DIR="/app/databaseUsage"
-REPORT_DIR="/reports/databaseUsage"
+BASE_DIR="/app/databaseUsage"
+MODULE_DIR="${BASE_DIR}"
+if [[ -d "${BASE_DIR}/databaseUsage" ]]; then
+  MODULE_DIR="${BASE_DIR}/databaseUsage"
+fi
+
+REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
