@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
+    env:
+      QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,9 +34,43 @@ jobs:
             echo "GHCR_TOKEN not set; skipping login"
           fi
 
+      - name: Pull docker images (compose)
+        run: |
+          set -euo pipefail
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          docker compose -f docker-compose.ci.yml pull || true
+
+      # ✅ ВРЕМЕННЫЙ DEBUG-ШАГ: после pull / перед запуском
+      - name: Debug QA image contents (tmp)
+        run: |
+          set -euo pipefail
+          echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -lc '
+            set -eux
+            echo "== java =="
+            java -version || true
+
+            echo "== env =="
+            echo "CLASSPATH=$CLASSPATH"
+            echo "JAVA_HOME=${JAVA_HOME:-<empty>}"
+            echo "PATH=$PATH"
+
+            echo "== pwd/ls =="
+            pwd
+            ls -la
+
+            echo "== check common dirs =="
+            ls -la /app 2>/dev/null || true
+            ls -la /work 2>/dev/null || true
+            ls -la /opt 2>/dev/null || true
+
+            echo "== find junit/gatling jars (first 200) =="
+            find / -maxdepth 6 -type f \
+              \( -iname "*junit*.jar" -o -iname "*gatling*.jar" -o -iname "*.jar" \) \
+              2>/dev/null | head -n 200
+          '
+
       - name: Run all QA tests (docker compose)
-        env:
-          QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
         run: |
           set -euo pipefail
 
@@ -42,8 +79,6 @@ jobs:
 
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
           echo "▶ USER_ID:GROUP_ID = ${USER_ID}:${GROUP_ID}"
-
-          docker compose -f docker-compose.ci.yml pull || true
 
           echo "▶ Starting DB dependencies..."
           docker compose -f docker-compose.ci.yml up -d mysql mongodb
