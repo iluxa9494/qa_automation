@@ -1,4 +1,3 @@
-# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_database.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -12,25 +11,23 @@ fi
 
 # Root target (там лежит target/classes и target/test-classes)
 ROOT_TARGET="${BASE_DIR}/target"
-if [[ -d "${BASE_DIR}/target" ]]; then
-  ROOT_TARGET="${BASE_DIR}/target"
-fi
 
-REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
+REPORTS_BASE="${REPORTS_DIR:-/reports}"
+REPORT_DIR="${REPORTS_BASE}/databaseUsage"
+
+# ✅ Allure results dir (отдельная подпапка под suite)
+ALLURE_BASE_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_BASE}/allure-results}"
+ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/databaseUsage"
+
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-# ✅ Allure results dir shared for whole run
-ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
-mkdir -p "${ALLURE_RESULTS_DIR}"
+mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
-mkdir -p "${REPORT_DIR}"
-
-# Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
+# Рабочая директория — root проекта
 cd "${BASE_DIR}"
 
 DEPS_DIR="${MODULE_DIR}/target/deps"
-
 CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
 
 echo "▶ [databaseUsage] BASE_DIR=${BASE_DIR}"
@@ -40,6 +37,14 @@ echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [databaseUsage] CP=${CP}"
 echo "▶ [databaseUsage] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
+# Базовые проверки, чтобы не зависать на пустом classpath
+if [[ ! -d "${DEPS_DIR}" ]]; then
+  echo "❌ Missing deps dir: ${DEPS_DIR}"
+  echo "   (You likely forgot to run mvn dependency:copy-dependencies during image build)"
+  exit 21
+fi
+
 java "${JAVA_OPTS_ARR[@]}" \
   -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+  -cp "${CP}" \
+  org.junit.runner.JUnitCore CucumberRun

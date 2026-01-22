@@ -73,6 +73,10 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/formy"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
+# ✅ Allure results dir shared for whole run
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
+mkdir -p "${ALLURE_RESULTS_DIR}"
+
 mkdir -p "${REPORT_DIR}"
 
 export DISPLAY=:99
@@ -90,8 +94,11 @@ echo "▶ [formy] MODULE_DIR=${MODULE_DIR}"
 echo "▶ [formy] ROOT_TARGET=${ROOT_TARGET}"
 echo "▶ [formy] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [formy] CP=${CP}"
+echo "▶ [formy] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+java "${JAVA_OPTS_ARR[@]}" \
+  -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
 //tools/NestedReportGenerator.java//
 package tools;
 
@@ -619,6 +626,10 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
+# ✅ Allure results dir shared for whole run
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
+mkdir -p "${ALLURE_RESULTS_DIR}"
+
 mkdir -p "${REPORT_DIR}"
 
 # Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
@@ -633,8 +644,11 @@ echo "▶ [databaseUsage] MODULE_DIR=${MODULE_DIR}"
 echo "▶ [databaseUsage] ROOT_TARGET=${ROOT_TARGET}"
 echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [databaseUsage] CP=${CP}"
+echo "▶ [databaseUsage] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+java "${JAVA_OPTS_ARR[@]}" \
+  -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
 //LICENSE//
 MIT License
 
@@ -687,9 +701,10 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
-    # ❗️В CI НЕ ПЕРЕОПРЕДЕЛЯЕМ user, чтобы не потерять доступ к /app и jar'ам
     environment:
       REPORTS_DIR: /reports
+      # (optional) makes it explicit for debugging/consistency
+      ALLURE_RESULTS_DIR: /reports/allure-results
     volumes:
       - ./reports:/reports
     command: ["/entrypoint.sh"]
@@ -721,6 +736,9 @@ services:
 
         <jackson.version>2.17.2</jackson.version>
 
+        <!-- Allure -->
+        <allure.version>2.29.0</allure.version>
+
         <maven.surefire.version>3.2.5</maven.surefire.version>
         <maven.compiler.version>3.13.0</maven.compiler.version>
         <exec.maven.plugin.version>3.3.0</exec.maven.plugin.version>
@@ -742,6 +760,13 @@ services:
             <groupId>io.cucumber</groupId>
             <artifactId>datatable</artifactId>
             <version>${cucumber.datatable.version}</version>
+        </dependency>
+
+        <!-- ✅ Allure adapter for Cucumber 6 -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber6-jvm</artifactId>
+            <version>${allure.version}</version>
         </dependency>
 
         <!-- JUnit 4 -->
@@ -926,7 +951,13 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
                 "json:/reports/databaseUsage/cucumber.json",
-                "html:/reports/databaseUsage/cucumber.html"
+                "html:/reports/databaseUsage/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
+
+                // ✅ Allure results
+                "io.qameta.allure.cucumber6jvm.AllureCucumber6Jvm"
         },
         monochrome = true
 )
@@ -1271,6 +1302,10 @@ flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 REPORTS_DIR="${REPORTS_DIR:-/reports}"
 mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
 
+# ✅ Allure results (one folder per run)
+rm -rf "${REPORTS_DIR}/allure-results" || true
+mkdir -p "${REPORTS_DIR}/allure-results"
+
 # ---- helpers ----
 wait_for_tcp() {
   local host="$1"
@@ -1390,7 +1425,8 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <ul>
       <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
       <li>JSON: <code>formy/cucumber.json</code></li>
-      <li>JUnit XML: <code>formy/surefire-reports/*.xml</code></li>
+      <li>JUnit XML: <code>formy/TEST-formy.xml</code></li>
+      <li>Allure Results: <code>allure-results/*</code></li>
     </ul>
   </div>
 
@@ -1399,7 +1435,8 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
       <li>JSON: <code>databaseUsage/cucumber.json</code></li>
-      <li>JUnit XML: <code>databaseUsage/surefire-reports/*.xml</code></li>
+      <li>JUnit XML: <code>databaseUsage/TEST-databaseUsage.xml</code></li>
+      <li>Allure Results: <code>allure-results/*</code></li>
     </ul>
   </div>
 
@@ -1423,6 +1460,12 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
+fi
+
+# ✅ contract: allure-results must be non-empty (otherwise Jenkins Allure is broken)
+if [[ ! -d "${REPORTS_DIR}/allure-results" ]] || [[ -z "$(ls -A "${REPORTS_DIR}/allure-results" 2>/dev/null)" ]]; then
+  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build as pipeline broken"
+  exit 12
 fi
 
 if [[ "$rc" != "0" ]]; then
@@ -2487,6 +2530,20 @@ jobs:
             echo "✔ Reports exist"
           fi
 
+          # ✅ Allure contract: reports/allure-results must exist and be non-empty
+          if [[ ! -d reports/allure-results ]]; then
+            echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+            echo "❌ Missing reports/allure-results (Allure results are required for Jenkins Allure plugin)"
+          else
+            if ! find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
+              echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+              echo "❌ reports/allure-results exists but is empty"
+            else
+              echo "ALLURE_EMPTY=0" >> "$GITHUB_ENV"
+              echo "✔ Allure results exist"
+            fi
+          fi
+
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
@@ -2514,7 +2571,7 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # If reports is empty scp would fail, but this step runs only when NO_REPORTS==0
+          # Upload everything (includes allure-results if present)
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
@@ -2528,7 +2585,7 @@ jobs:
             RUN_ID=\$(cat \"\$BASE/LATEST\")
             SRC=\"\$BASE/runs/\$RUN_ID\"
 
-            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" || true
+            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
             rm -f \"\$BASE/index.html\" || true
 
             cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
@@ -2536,22 +2593,18 @@ jobs:
             cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
             cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
             [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
+            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
 
             # Fix links to be BASE-root friendly
             sed -i 's#reports/##g' \"\$BASE/index.html\" || true
             sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
-
-            # Friendly stable entrypoints
-            ln -sfn \"cucumber.html\" \"\$BASE/formy/index.html\" || true
-            ln -sfn \"cucumber.html\" \"\$BASE/databaseUsage/index.html\" || true
-            ln -sfn \"latest/index.html\" \"\$BASE/gatling/index.html\" || true
 
             chmod -R a+rX \"\$BASE\" || true
             echo \"✅ Published \$RUN_ID\"
           "
 
       # ✅ Result: workflow does NOT fail when tests fail.
-      #    It fails ONLY if there are no reports at all (pipeline is broken).
+      #    It fails ONLY if pipeline is broken (no reports / no allure-results).
       - name: Finalize (do not fail on test failures)
         if: always()
         run: |
@@ -2559,10 +2612,16 @@ jobs:
 
           echo "▶ QA_RC=${QA_RC:-<unset>}"
           echo "▶ NO_REPORTS=${NO_REPORTS:-<unset>}"
+          echo "▶ ALLURE_EMPTY=${ALLURE_EMPTY:-<unset>}"
 
           if [[ "${NO_REPORTS:-1}" == "1" ]]; then
             echo "❌ No reports generated at all — failing build (pipeline broken)"
             exit 10
+          fi
+
+          if [[ "${ALLURE_EMPTY:-1}" == "1" ]]; then
+            echo "❌ Allure results missing/empty — failing build (pipeline broken)"
+            exit 12
           fi
 
           if [[ "${QA_RC:-0}" != "0" ]]; then
@@ -2681,7 +2740,6 @@ pipeline {
                     if (last && last == env.RESOLVED_RUN_ID) {
                         echo "⏭  RUN_ID unchanged (${env.RESOLVED_RUN_ID}). Skipping to avoid duplicate builds."
                         currentBuild.result = 'NOT_BUILT'
-                        // stop pipeline early (post will soft-skip if no reports/)
                         return
                     }
 
@@ -2718,6 +2776,17 @@ pipeline {
                   if [ ! -d "$SRC/gatling/latest" ]; then
                     echo "❌ Missing required directory: $SRC/gatling/latest"
                     exit 4
+                  fi
+
+                  # Allure contract (soft for now: warn until CI starts exporting it)
+                  if [ ! -d "$SRC/allure-results" ]; then
+                    echo "⚠️ Allure results folder is missing: $SRC/allure-results"
+                    echo "   Jenkins Allure tab will be empty until CI uploads allure-results/**"
+                  else
+                    if ! find "$SRC/allure-results" -type f -print -quit | grep -q .; then
+                      echo "⚠️ Allure results folder exists but is empty: $SRC/allure-results"
+                      echo "   Jenkins Allure tab will be empty until CI generates results."
+                    fi
                   fi
 
                   # JUnit contract: at least one XML should exist (any of the supported patterns)
@@ -2788,66 +2857,87 @@ pipeline {
                     echo "ℹ️ No reports workspace (likely skipped). Post actions are skipped."
                     return
                 }
+
+                // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin)
+                junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
+                      allowEmptyResults: true,
+                      keepLongStdio: true
+
+                // ✅ Allure: вкладка Allure + trend (если есть результаты)
+                def hasAllure = sh(script: 'test -d reports/allure-results && find reports/allure-results -type f -print -quit >/dev/null 2>&1 && echo yes || echo no', returnStdout: true).trim() == 'yes'
+                if (hasAllure) {
+                    allure(
+                        includeProperties: false,
+                        jdk: '',
+                        results: [[path: 'reports/allure-results']]
+                    )
+                } else {
+                    echo "ℹ️ No allure-results in this build (reports/allure-results is missing or empty)."
+                }
+
+                // Сохраняем артефакты билда — это и есть «история» в Jenkins
+                archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
+
+                // Главный index (если он реально приезжает в reports/)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports',
+                    reportFiles:           'index.html',
+                    reportName:            'QA Dashboard'
+                ])
+
+                // Formy: cucumber.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/formy',
+                    reportFiles:           'cucumber.html',
+                    reportName:            'UI tests (Formy)'
+                ])
+
+                // Formy: cucumber-html-report/index.html (если есть)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/formy/cucumber-html-report',
+                    reportFiles:           'index.html',
+                    reportName:            'UI tests (Formy) — Cucumber HTML Report'
+                ])
+
+                // Database usage: cucumber.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/databaseUsage',
+                    reportFiles:           'cucumber.html',
+                    reportName:            'DB tests'
+                ])
+
+                // Database usage: cucumber-html-report/index.html (если есть)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/databaseUsage/cucumber-html-report',
+                    reportFiles:           'index.html',
+                    reportName:            'DB tests (Cucumber HTML Report)'
+                ])
+
+                // Gatling: reports/gatling/latest/index.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/gatling/latest',
+                    reportFiles:           'index.html',
+                    reportName:            'Load tests (Gatling)'
+                ])
             }
-
-            // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin) + анализатор
-            // Contract expects at least one of these patterns to exist under reports/
-            junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
-                  allowEmptyResults: true,
-                  keepLongStdio: true
-
-            // Сохраняем артефакты билда — это и есть «история» в Jenkins
-            archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
-
-            // Главный index (если он реально приезжает в reports/)
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports',
-                reportFiles:           'index.html',
-                reportName:            'QA Dashboard'
-            ])
-
-            // Formy: у тебя по факту reports/formy/cucumber.html (не index.html)
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/formy',
-                reportFiles:           'cucumber.html',
-                reportName:            'UI tests (Formy)'
-            ])
-
-            // Database usage: у тебя реально есть reports/databaseUsage/cucumber.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage',
-                reportFiles:           'cucumber.html',
-                reportName:            'DB tests'
-            ])
-
-            // Если в reports/databaseUsage/cucumber-html-report есть index.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage/cucumber-html-report',
-                reportFiles:           'index.html',
-                reportName:            'DB tests (Cucumber HTML Report)'
-            ])
-
-            // Gatling: reports/gatling/latest/index.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/gatling/latest',
-                reportFiles:           'index.html',
-                reportName:            'Load tests (Gatling)'
-            ])
         }
     }
 }
@@ -2874,6 +2964,9 @@ pipeline {
         <junit.version>4.13.2</junit.version>
         <testng.version>7.11.0</testng.version>
 
+        <!-- Allure -->
+        <allure.version>2.29.0</allure.version>
+
         <!-- Libs -->
         <selenium.version>4.39.0</selenium.version>
         <webdrivermanager.version>6.3.3</webdrivermanager.version>
@@ -2896,6 +2989,13 @@ pipeline {
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit</artifactId>
             <version>${cucumber.version}</version>
+        </dependency>
+
+        <!-- ✅ Allure adapter for Cucumber 7 -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber7-jvm</artifactId>
+            <version>${allure.version}</version>
         </dependency>
 
         <!-- JUnit 4 (runner на JUnit4) -->
@@ -11576,7 +11676,13 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
                 "json:/reports/formy/cucumber.json",
-                "html:/reports/formy/cucumber.html"
+                "html:/reports/formy/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/formy/TEST-formy.xml",
+
+                // ✅ Allure results
+                "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true
 )

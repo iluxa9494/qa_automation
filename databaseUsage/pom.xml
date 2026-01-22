@@ -20,7 +20,7 @@
 
         <jackson.version>2.17.2</jackson.version>
 
-        <!-- Allure -->
+        <!-- ✅ Allure -->
         <allure.version>2.29.0</allure.version>
 
         <maven.surefire.version>3.2.5</maven.surefire.version>
@@ -120,13 +120,12 @@
                 </configuration>
             </plugin>
 
-            <!-- ✅ Exec Maven Plugin (запуск генератора) -->
+            <!-- Exec Maven Plugin (если используешь генератор) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.maven.plugin.version}</version>
                 <configuration>
-                    <!-- Генератор лежит в src/test/java -->
                     <classpathScope>test</classpathScope>
                     <mainClass>tools.NestedReportGenerator</mainClass>
                 </configuration>

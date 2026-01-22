@@ -8,13 +8,15 @@ import org.junit.runner.RunWith;
         glue = "Steps",
         plugin = {
                 "pretty",
+
+                // ✅ отчёты
                 "json:/reports/formy/cucumber.json",
                 "html:/reports/formy/cucumber.html",
 
                 // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/formy/TEST-formy.xml",
 
-                // ✅ Allure results
+                // ✅ Allure (Cucumber 7 adapter)
                 "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true
