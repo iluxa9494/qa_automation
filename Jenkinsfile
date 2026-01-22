@@ -63,7 +63,7 @@ pipeline {
                     if (last && last == env.RESOLVED_RUN_ID) {
                         echo "⏭  RUN_ID unchanged (${env.RESOLVED_RUN_ID}). Skipping to avoid duplicate builds."
                         currentBuild.result = 'NOT_BUILT'
-                        // stop pipeline early (no post actions)
+                        // stop pipeline early (post will soft-skip if no reports/)
                         return
                     }
 
@@ -73,6 +73,9 @@ pipeline {
         }
 
         stage('Contract check (reports structure)') {
+            when {
+                expression { currentBuild.result != 'NOT_BUILT' }
+            }
             steps {
                 sh '''
                   set -eux
@@ -115,6 +118,9 @@ pipeline {
         }
 
         stage('Import reports from VPS into workspace') {
+            when {
+                expression { currentBuild.result != 'NOT_BUILT' }
+            }
             steps {
                 sh '''
                   set -eux
@@ -127,6 +133,9 @@ pipeline {
         }
 
         stage('Mark RUN_ID as processed') {
+            when {
+                expression { currentBuild.result != 'NOT_BUILT' }
+            }
             steps {
                 sh '''
                   set -euo pipefail
@@ -139,6 +148,9 @@ pipeline {
         }
 
         stage('Debug: show imported structure') {
+            when {
+                expression { currentBuild.result != 'NOT_BUILT' }
+            }
             steps {
                 sh '''
                   set -eux
@@ -150,8 +162,6 @@ pipeline {
     }
 
     post {
-        // ВАЖНО: post выполнится даже если currentBuild.result = NOT_BUILT,
-        // но мы можем мягко пропустить публикацию, если отчётов нет.
         always {
             script {
                 // If we skipped early, reports/ likely does not exist.
@@ -181,13 +191,13 @@ pipeline {
                 reportName:            'QA Dashboard'
             ])
 
-            // Formy: ожидаем HTML в reports/formy/index.html (сейчас может отсутствовать — allowMissing=true)
+            // Formy: у тебя по факту reports/formy/cucumber.html (не index.html)
             publishHTML(target: [
                 allowMissing:          true,
                 alwaysLinkToLastBuild: true,
                 keepAll:               true,
                 reportDir:             'reports/formy',
-                reportFiles:           'index.html',
+                reportFiles:           'cucumber.html',
                 reportName:            'UI tests (Formy)'
             ])
 
