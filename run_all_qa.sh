@@ -13,6 +13,10 @@ flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 REPORTS_DIR="${REPORTS_DIR:-/reports}"
 mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
 
+# ✅ Allure results (one folder per run)
+rm -rf "${REPORTS_DIR}/allure-results" || true
+mkdir -p "${REPORTS_DIR}/allure-results"
+
 # ---- helpers ----
 wait_for_tcp() {
   local host="$1"
@@ -132,7 +136,8 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <ul>
       <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
       <li>JSON: <code>formy/cucumber.json</code></li>
-      <li>JUnit XML: <code>formy/surefire-reports/*.xml</code></li>
+      <li>JUnit XML: <code>formy/TEST-formy.xml</code></li>
+      <li>Allure Results: <code>allure-results/*</code></li>
     </ul>
   </div>
 
@@ -141,7 +146,8 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
       <li>JSON: <code>databaseUsage/cucumber.json</code></li>
-      <li>JUnit XML: <code>databaseUsage/surefire-reports/*.xml</code></li>
+      <li>JUnit XML: <code>databaseUsage/TEST-databaseUsage.xml</code></li>
+      <li>Allure Results: <code>allure-results/*</code></li>
     </ul>
   </div>
 
@@ -165,6 +171,12 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
+fi
+
+# ✅ contract: allure-results must be non-empty (otherwise Jenkins Allure is broken)
+if [[ ! -d "${REPORTS_DIR}/allure-results" ]] || [[ -z "$(ls -A "${REPORTS_DIR}/allure-results" 2>/dev/null)" ]]; then
+  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build as pipeline broken"
+  exit 12
 fi
 
 if [[ "$rc" != "0" ]]; then

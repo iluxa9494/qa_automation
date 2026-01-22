@@ -9,7 +9,13 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
                 "json:/reports/databaseUsage/cucumber.json",
-                "html:/reports/databaseUsage/cucumber.html"
+                "html:/reports/databaseUsage/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
+
+                // ✅ Allure results
+                "io.qameta.allure.cucumber6jvm.AllureCucumber6Jvm"
         },
         monochrome = true
 )

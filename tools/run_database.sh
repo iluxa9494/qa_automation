@@ -20,6 +20,10 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
+# ✅ Allure results dir shared for whole run
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
+mkdir -p "${ALLURE_RESULTS_DIR}"
+
 mkdir -p "${REPORT_DIR}"
 
 # Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
@@ -34,5 +38,8 @@ echo "▶ [databaseUsage] MODULE_DIR=${MODULE_DIR}"
 echo "▶ [databaseUsage] ROOT_TARGET=${ROOT_TARGET}"
 echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [databaseUsage] CP=${CP}"
+echo "▶ [databaseUsage] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+java "${JAVA_OPTS_ARR[@]}" \
+  -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun

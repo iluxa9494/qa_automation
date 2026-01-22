@@ -20,6 +20,9 @@
         <junit.version>4.13.2</junit.version>
         <testng.version>7.11.0</testng.version>
 
+        <!-- Allure -->
+        <allure.version>2.29.0</allure.version>
+
         <!-- Libs -->
         <selenium.version>4.39.0</selenium.version>
         <webdrivermanager.version>6.3.3</webdrivermanager.version>
@@ -42,6 +45,13 @@
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-junit</artifactId>
             <version>${cucumber.version}</version>
+        </dependency>
+
+        <!-- ✅ Allure adapter for Cucumber 7 -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber7-jvm</artifactId>
+            <version>${allure.version}</version>
         </dependency>
 
         <!-- JUnit 4 (runner на JUnit4) -->

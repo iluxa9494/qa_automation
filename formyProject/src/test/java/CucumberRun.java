@@ -9,7 +9,13 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
                 "json:/reports/formy/cucumber.json",
-                "html:/reports/formy/cucumber.html"
+                "html:/reports/formy/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/formy/TEST-formy.xml",
+
+                // ✅ Allure results
+                "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true
 )

@@ -20,6 +20,10 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/formy"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
+# ✅ Allure results dir shared for whole run
+ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
+mkdir -p "${ALLURE_RESULTS_DIR}"
+
 mkdir -p "${REPORT_DIR}"
 
 export DISPLAY=:99
@@ -37,5 +41,8 @@ echo "▶ [formy] MODULE_DIR=${MODULE_DIR}"
 echo "▶ [formy] ROOT_TARGET=${ROOT_TARGET}"
 echo "▶ [formy] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [formy] CP=${CP}"
+echo "▶ [formy] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+java "${JAVA_OPTS_ARR[@]}" \
+  -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
