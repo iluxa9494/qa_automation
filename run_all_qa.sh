@@ -47,6 +47,19 @@ copy_if_exists() {
   fi
 }
 
+run_with_timeout() {
+  local name="$1"
+  local t="$2"
+  shift 2
+  if command -v timeout >/dev/null 2>&1; then
+    echo "⏱  Timeout for ${name}: ${t}"
+    timeout --preserve-status "$t" "$@"
+  else
+    echo "⚠️  'timeout' not found; running ${name} without timeout"
+    "$@"
+  fi
+}
+
 # ---- DB endpoints from env (override if needed) ----
 MYSQL_HOST="${MYSQL_HOST:-mysql}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
@@ -59,9 +72,12 @@ wait_for_tcp "$MONGO_HOST" "$MONGO_PORT" "MongoDB"
 # ---- run suites ----
 rc=0
 
+# ✅ Make sure all suites write Allure into the same base (subfolders are handled in run_* scripts)
+export ALLURE_RESULTS_DIR="${REPORTS_DIR}/allure-results"
+
 echo "▶ Running DB tests..."
 set +e
-/app/tools/run_database.sh
+run_with_timeout "DB tests" "25m" /app/tools/run_database.sh
 db_rc=$?
 set -e
 echo "✔ DB tests finished with rc=$db_rc"
@@ -69,7 +85,7 @@ if [[ "$db_rc" != "0" ]]; then rc="$db_rc"; fi
 
 echo "▶ Running UI tests (Formy)..."
 set +e
-/app/tools/run_formy.sh
+run_with_timeout "UI tests (Formy)" "25m" /app/tools/run_formy.sh
 ui_rc=$?
 set -e
 echo "✔ UI tests finished with rc=$ui_rc"
@@ -77,18 +93,22 @@ if [[ "$ui_rc" != "0" && "$rc" == "0" ]]; then rc="$ui_rc"; fi
 
 echo "▶ Running load tests (Gatling)..."
 set +e
-/app/tools/run_gatling.sh
+run_with_timeout "Load tests (Gatling)" "25m" /app/tools/run_gatling.sh
 gat_rc=$?
 set -e
 echo "✔ Gatling finished with rc=$gat_rc"
 if [[ "$gat_rc" != "0" && "$rc" == "0" ]]; then rc="$gat_rc"; fi
 
 # ---- collect reports into $REPORTS_DIR ----
+# NOTE: cucumber plugins already write reports directly into /reports (via absolute paths in CucumberOptions).
+# We still copy some legacy artifacts from target/ for convenience.
+
 # Formy
 copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${REPORTS_DIR}/formy/cucumber.json"
 copy_if_exists "/app/formyProject/target/cucumber.html" "${REPORTS_DIR}/formy/cucumber.html"
 copy_if_exists "/app/formyProject/target/cucumber-html-report" "${REPORTS_DIR}/formy/cucumber-html-report"
 copy_if_exists "/app/formyProject/target/surefire-reports" "${REPORTS_DIR}/formy/surefire-reports"
+# If something still writes TEST-*.xml into target:
 copy_if_exists "/app/formyProject/target/TEST-*.xml" "${REPORTS_DIR}/formy/" || true
 
 # DatabaseUsage
@@ -99,9 +119,7 @@ copy_if_exists "/app/databaseUsage/target/surefire-reports" "${REPORTS_DIR}/data
 copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${REPORTS_DIR}/databaseUsage/" || true
 
 # Gatling
-# Common: target/gatling/latest (you also have target/gatling/* + lastRun.txt)
 copy_if_exists "/app/restfulBookerLoad/target/gatling" "${REPORTS_DIR}/gatling"
-# Ensure "latest" exists (Gatling usually maintains it)
 if [[ -d "${REPORTS_DIR}/gatling" && ! -d "${REPORTS_DIR}/gatling/latest" ]]; then
   latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
@@ -134,10 +152,10 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
   <div class="card">
     <h2>UI tests (Formy)</h2>
     <ul>
-      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
+      <li>HTML: <a href="formy/cucumber.html">open</a></li>
       <li>JSON: <code>formy/cucumber.json</code></li>
       <li>JUnit XML: <code>formy/TEST-formy.xml</code></li>
-      <li>Allure Results: <code>allure-results/*</code></li>
+      <li>Allure Results: <code>allure-results/</code></li>
     </ul>
   </div>
 
@@ -147,7 +165,7 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
       <li>JSON: <code>databaseUsage/cucumber.json</code></li>
       <li>JUnit XML: <code>databaseUsage/TEST-databaseUsage.xml</code></li>
-      <li>Allure Results: <code>allure-results/*</code></li>
+      <li>Allure Results: <code>allure-results/</code></li>
     </ul>
   </div>
 
@@ -165,6 +183,9 @@ echo "✔ ${REPORTS_DIR}/index.html generated"
 echo "▶ Reports directory listing:"
 ls -la "${REPORTS_DIR}" || true
 
+echo "▶ Allure results listing (first 200 files):"
+find "${REPORTS_DIR}/allure-results" -type f 2>/dev/null | head -n 200 || true
+
 # ---- contract: at least some reports should exist ----
 if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
@@ -173,8 +194,8 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
   exit 10
 fi
 
-# ✅ contract: allure-results must be non-empty (otherwise Jenkins Allure is broken)
-if [[ ! -d "${REPORTS_DIR}/allure-results" ]] || [[ -z "$(ls -A "${REPORTS_DIR}/allure-results" 2>/dev/null)" ]]; then
+# ✅ contract: allure-results must contain at least one file (not just empty dirs)
+if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
   echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build as pipeline broken"
   exit 12
 fi
