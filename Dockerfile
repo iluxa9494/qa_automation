@@ -1,4 +1,5 @@
 # /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
+# (оставляем логику как есть — она рабочая; фиксим именно tools/run_*.sh)
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 
@@ -68,7 +69,6 @@ RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_g
 COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
 RUN chmod +x /entrypoint-qa-dashboard.sh
 
-# ✅ контейнерный оркестратор CI (запускает /app/tools/run_*.sh и генерит reports/index.html)
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -80,8 +80,5 @@ ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
 USER seluser
 
-# Делаем поведение предсказуемым: command в compose будет реально выполняться
 ENTRYPOINT ["/bin/bash", "-lc"]
-
-# По умолчанию образ может быть использован как "сервер отчётов" (VPS режим)
 CMD ["/entrypoint-qa-dashboard.sh"]

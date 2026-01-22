@@ -1,4 +1,3 @@
-# /Users/ilia/IdeaProjects/pet_projects/qa_automation/docker-compose.ci.yml
 services:
   mysql:
     image: mysql:8.0
@@ -30,7 +29,6 @@ services:
     # ❗️В CI НЕ ПЕРЕОПРЕДЕЛЯЕМ user, чтобы не потерять доступ к /app и jar'ам
     environment:
       REPORTS_DIR: /reports
-      QA_DEBUG: "${QA_DEBUG:-0}" # ✅ временно: чтобы включать расширенный вывод из entrypoint (когда добавим поддержку)
     volumes:
       - ./reports:/reports
     command: ["/entrypoint.sh"]
