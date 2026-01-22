@@ -1,3 +1,4 @@
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/.github/workflows/monthly-qa.yml
 name: Monthly QA Run
 
 on:
@@ -40,7 +41,7 @@ jobs:
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
           docker compose -f docker-compose.ci.yml pull || true
 
-      # ✅ ВРЕМЕННЫЙ DEBUG-ШАГ: после pull / перед запуском
+      # ✅ TEMP DEBUG: after pull / before running compose
       - name: Debug QA image contents (tmp)
         run: |
           set -euo pipefail
@@ -68,6 +69,36 @@ jobs:
             echo "== find junit/gatling jars (first 200) =="
             find / -maxdepth 6 -type f \( -iname "*junit*.jar" -o -iname "*gatling*.jar" -o -iname "*.jar" \) 2>/dev/null | head -n 200
           '
+
+      # ✅ TEMP DEBUG: show effective compose + mounts of qa_automation service
+      - name: Debug compose config & mounts (tmp)
+        run: |
+          set -euo pipefail
+          echo "▶ Effective compose config:"
+          docker compose -f docker-compose.ci.yml config
+
+          export USER_ID="$(id -u)"
+          export GROUP_ID="$(id -g)"
+          echo "▶ USER_ID:GROUP_ID = ${USER_ID}:${GROUP_ID}"
+
+          echo "▶ Starting qa_automation shortly (for mounts debug)..."
+          docker compose -f docker-compose.ci.yml up -d --no-deps qa_automation || true
+
+          CID="$(docker ps -aqf "name=qa_automation-qa_automation-1" | head -n 1)"
+          echo "▶ qa_automation container id: ${CID:-<not found>}"
+
+          if [ -n "${CID:-}" ]; then
+            echo "▶ Mounts:"
+            docker inspect "$CID" --format '{{json .Mounts}}' || true
+
+            echo "▶ Entrypoint/Cmd:"
+            docker inspect "$CID" --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}' || true
+
+            echo "▶ Env (filtered):"
+            docker inspect "$CID" --format '{{range .Config.Env}}{{println .}}{{end}}' | egrep 'QA_AUTOMATION|REPORTS|USER_ID|GROUP_ID|JAVA|CLASSPATH|PATH' || true
+          fi
+
+          docker compose -f docker-compose.ci.yml rm -sf qa_automation || true
 
       - name: Run all QA tests (docker compose)
         run: |
