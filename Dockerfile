@@ -1,3 +1,4 @@
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 

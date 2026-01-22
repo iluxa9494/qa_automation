@@ -26,12 +26,12 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
-    user: "${UID}:${GID}"
+    user: "${USER_ID}:${GROUP_ID}"
     environment:
       REPORTS_DIR: /reports
     volumes:
       - ./reports:/reports
-    command: ["/run_all_qa.sh"]
+    command: ["/entrypoint.sh"]
     depends_on:
       mysql:
         condition: service_healthy
