@@ -647,7 +647,7 @@ services:
       REPORTS_DIR: /reports
     volumes:
       - ./reports:/reports
-    command: ["/run_all_qa.sh"]
+    command: ["/entrypoint.sh"]
     depends_on:
       mysql:
         condition: service_healthy
@@ -1389,11 +1389,6 @@ fi
 
 echo "✔ All QA test suites finished successfully"
 //Dockerfile//
-# Dockerfile
-# Default base: selenium/standalone-chromium (Docker Hub)
-# You can override it in CI or on VPS:
-#   docker build --build-arg SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest .
-
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 
@@ -1463,9 +1458,9 @@ RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_g
 COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
 RUN chmod +x /entrypoint-qa-dashboard.sh
 
-# ✅ добавили запускатор CI в образ
-COPY run_all_qa.sh /run_all_qa.sh
-RUN chmod +x /run_all_qa.sh
+# ✅ контейнерный оркестратор CI (запускает /app/tools/run_*.sh и генерит reports/index.html)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
 RUN chown -R seluser:seluser /app
@@ -1475,6 +1470,10 @@ ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
 USER seluser
 
+# Делаем поведение предсказуемым: command в compose будет реально выполняться
+ENTRYPOINT ["/bin/bash", "-lc"]
+
+# По умолчанию образ может быть использован как "сервер отчётов" (VPS режим)
 CMD ["/entrypoint-qa-dashboard.sh"]
 //restfulBookerLoad/pom.xml//
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -2360,10 +2359,45 @@ jobs:
             echo "GHCR_TOKEN not set; skipping login"
           fi
 
-      - name: Run all QA tests
+      - name: Run all QA tests (docker compose)
+        env:
+          QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
         run: |
-          chmod +x ./run_all_qa.sh
-          ./run_all_qa.sh
+          set -euo pipefail
+
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+
+          docker compose -f docker-compose.ci.yml pull || true
+
+          echo "▶ Starting DB dependencies..."
+          docker compose -f docker-compose.ci.yml up -d mysql mongodb
+
+          echo "▶ Running qa_automation..."
+          set +e
+          docker compose -f docker-compose.ci.yml up --no-deps --abort-on-container-exit --exit-code-from qa_automation qa_automation
+          rc=$?
+          set -e
+
+          echo "✔ qa_automation finished with rc=$rc"
+          echo "▶ Reports on host:"
+          ls -la reports || true
+
+          echo "▶ Cleanup..."
+          docker compose -f docker-compose.ci.yml down --remove-orphans || true
+
+          # если отчётов вообще нет — фейлим
+          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html ]]; then
+            echo "❌ No reports generated at all — failing build"
+            exit 10
+          fi
+
+          # Если контейнер вернул ошибку — фейлим workflow (но отчёты уже есть)
+          if [[ "$rc" != "0" ]]; then
+            echo "❌ qa_automation failed (rc=$rc) — failing build"
+            exit 11
+          fi
+
+          echo "✔ All QA test suites finished successfully"
 
       - name: Sync reports to VPS (versioned)
         env:
@@ -16318,3 +16352,122 @@ ENV JAVA_OPTS="-Dhudson.model.DirectoryBrowserSupport.CSP="
 
 USER root
 ENTRYPOINT ["/usr/local/bin/jenkins-with-docker.sh"]
+//entrypoint.sh//
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPORTS_DIR="${REPORTS_DIR:-/reports}"
+
+mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
+
+echo "▶ QA container runner started"
+echo "▶ Reports dir: ${REPORTS_DIR}"
+echo "▶ JAVA_OPTS: ${JAVA_OPTS:-<empty>}"
+
+rc_formy=0
+rc_db=0
+rc_gatling=0
+
+run_suite() {
+  local name="$1"
+  local cmd="$2"
+
+  echo "▶ Running suite: ${name}"
+  set +e
+  bash -lc "${cmd}"
+  local rc=$?
+  set -e
+
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "❌ Suite '${name}' failed with rc=${rc}"
+  else
+    echo "✔ Suite '${name}' finished successfully"
+  fi
+
+  return "${rc}"
+}
+
+# 1) UI tests (Formy)
+if run_suite "formy" "/app/tools/run_formy.sh"; then
+  rc_formy=0
+else
+  rc_formy=$?
+fi
+
+# 2) DB tests
+if run_suite "databaseUsage" "/app/tools/run_database.sh"; then
+  rc_db=0
+else
+  rc_db=$?
+fi
+
+# 3) Load tests (Gatling)
+if run_suite "gatling" "/app/tools/run_gatling.sh"; then
+  rc_gatling=0
+else
+  rc_gatling=$?
+fi
+
+echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}"
+
+echo "▶ Generating QA Dashboard (reports/index.html)..."
+cat > "${REPORTS_DIR}/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>QA Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    a { text-decoration: none; }
+    code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>QA Dashboard</h1>
+
+  <div class="card">
+    <h2>UI tests (Formy)</h2>
+    <ul>
+      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>reports/formy/cucumber.json</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>DB tests</h2>
+    <ul>
+      <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
+      <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Load tests (Gatling)</h2>
+    <ul>
+      <li>HTML: <a href="gatling/latest/index.html">open</a></li>
+    </ul>
+  </div>
+</body>
+</html>
+HTML
+echo "✔ ${REPORTS_DIR}/index.html generated"
+ls -la "${REPORTS_DIR}" || true
+
+# если отчётов вообще нет — фейлим
+if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
+   && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
+   && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
+  echo "❌ No reports generated at all — failing build"
+  exit 10
+fi
+
+# если хотя бы одна suite упала — фейлим, но отчёты уже есть
+if [[ "${rc_formy}" -ne 0 || "${rc_db}" -ne 0 || "${rc_gatling}" -ne 0 ]]; then
+  echo "❌ One or more suites failed — failing build"
+  exit 11
+fi
+
+echo "✔ All QA test suites finished successfully"

@@ -23,6 +23,7 @@ jobs:
             sudo ln -s "$GITHUB_WORKSPACE" /home/pet_projects/qa_automation
           fi
           mkdir -p reports
+          chmod 0777 reports
 
       - name: Docker login (GHCR)
         env:
@@ -40,7 +41,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          export UID="$(id -u)"
+          export GID="$(id -g)"
+
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          echo "▶ UID:GID = ${UID}:${GID}"
 
           docker compose -f docker-compose.ci.yml pull || true
 
