@@ -8,8 +8,8 @@ import org.junit.runner.RunWith;
         glue = "Steps",
         plugin = {
                 "pretty",
-                "json:target/cucumber/cucumber.json",
-                "html:target/cucumber.html"
+                "json:/reports/formy/cucumber.json",
+                "html:/reports/formy/cucumber.html"
         },
         monochrome = true
 )
