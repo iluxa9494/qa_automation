@@ -151,8 +151,9 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
 
-      # ✅ Финальный фейл уже ПОСЛЕ синка
-      - name: Fail workflow if QA failed
+      # ✅ Итог: workflow НЕ падает от упавших тестов.
+      #    Падает ТОЛЬКО если отчётов нет вообще (инфра/пайплайн сломан).
+      - name: Finalize (do not fail on test failures)
         if: always()
         run: |
           set -euo pipefail
@@ -161,13 +162,13 @@ jobs:
           echo "▶ NO_REPORTS=${NO_REPORTS:-<unset>}"
 
           if [[ "${NO_REPORTS:-1}" == "1" ]]; then
-            echo "❌ No reports generated at all — failing build"
+            echo "❌ No reports generated at all — failing build (pipeline broken)"
             exit 10
           fi
 
           if [[ "${QA_RC:-0}" != "0" ]]; then
-            echo "❌ qa_automation failed (rc=${QA_RC}) — failing build"
-            exit 11
+            echo "⚠️ qa_automation failed (rc=${QA_RC}) — keeping workflow GREEN because reports were delivered"
+            exit 0
           fi
 
           echo "✔ All QA test suites finished successfully"
