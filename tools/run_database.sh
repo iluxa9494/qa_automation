@@ -2,20 +2,15 @@
 set -euo pipefail
 
 MODULE_DIR="/app/databaseUsage"
-REPORT_DIR="/reports/databaseUsage"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-mkdir -p "${REPORT_DIR}/surefire"
-
 cd "${MODULE_DIR}"
+
+mkdir -p target/cucumber
 
 CP="${MODULE_DIR}/target/deps/*:${MODULE_DIR}/target/classes:${MODULE_DIR}/target/test-classes"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.cucumber.core.cli.Main \
-  --plugin pretty \
-  --plugin "json:${REPORT_DIR}/cucumber.json" \
-  --plugin "html:${REPORT_DIR}/cucumber.html" \
-  --glue Steps \
-  src/test/features
+# Run Cucumber via JUnit4 runner (no io.cucumber.core.cli.Main)
+java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun

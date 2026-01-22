@@ -5,13 +5,11 @@ import org.junit.runner.RunWith;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         features = "src/test/features",
-        glue = {"Steps"},
+        glue = "Steps",
         plugin = {
                 "pretty",
-                // HTML репорт должен быть ФАЙЛОМ
-                "html:target/cucumber.html",
-                // JSON для агрегации/дженкинса и nested report
-                "json:target/cucumber/cucumber.json"
+                "json:target/cucumber/cucumber.json",
+                "html:target/cucumber.html"
         },
         monochrome = true
 )

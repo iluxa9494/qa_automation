@@ -643,6 +643,7 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
+    user: "${USER_ID}:${GROUP_ID}"
     environment:
       REPORTS_DIR: /reports
     volumes:
@@ -1389,6 +1390,7 @@ fi
 
 echo "✔ All QA test suites finished successfully"
 //Dockerfile//
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 
@@ -2341,13 +2343,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare host path for docker volumes
+      - name: Prepare workspace for docker volumes
         run: |
-          sudo mkdir -p /home/pet_projects
-          if [ ! -e /home/pet_projects/qa_automation ]; then
-            sudo ln -s "$GITHUB_WORKSPACE" /home/pet_projects/qa_automation
-          fi
           mkdir -p reports
+          chmod 0777 reports
 
       - name: Docker login (GHCR)
         env:
@@ -2365,7 +2364,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          export USER_ID="$(id -u)"
+          export GROUP_ID="$(id -g)"
+
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          echo "▶ USER_ID:GROUP_ID = ${USER_ID}:${GROUP_ID}"
 
           docker compose -f docker-compose.ci.yml pull || true
 
