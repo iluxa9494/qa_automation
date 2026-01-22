@@ -151,6 +151,26 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
 
+          # ✅ Publish latest run to BASE root (NO symlinks; python http.server friendly)
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
+            set -euo pipefail
+            BASE=/home/pet_projects/qa_automation/reports
+            RUN_ID=\$(cat \"\$BASE/LATEST\")
+            SRC=\"\$BASE/runs/\$RUN_ID\"
+
+            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" || true
+            rm -f \"\$BASE/index.html\" || true
+
+            cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
+            cp -a \"\$SRC/formy\" \"\$BASE/formy\"
+            cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
+            cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
+            [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
+
+            chmod -R a+rX \"\$BASE\" || true
+            echo \"✅ Published \$RUN_ID\"
+          "
+
       # ✅ Итог: workflow НЕ падает от упавших тестов.
       #    Падает ТОЛЬКО если отчётов нет вообще (инфра/пайплайн сломан).
       - name: Finalize (do not fail on test failures)
