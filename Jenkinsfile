@@ -29,9 +29,8 @@ pipeline {
 
     environment {
         QA_BASE = "/home/pet_projects/qa_automation/reports"
-
-        // Jenkins connection (via nginx + SSL)
-        JENKINS_URL = "https://jenkins.murashkin.dev"
+        // Persist across workspaces (survives cleanup)
+        LAST_RUN_FILE = "${JENKINS_HOME}/qa_automation_last_run_id"
     }
 
     stages {
@@ -49,6 +48,26 @@ pipeline {
                     }
 
                     echo "Using RUN_ID=${env.RESOLVED_RUN_ID}"
+                }
+            }
+        }
+
+        stage('Skip if RUN_ID unchanged') {
+            steps {
+                script {
+                    def last = sh(
+                        script: "cat '${env.LAST_RUN_FILE}' 2>/dev/null || true",
+                        returnStdout: true
+                    ).trim()
+
+                    if (last && last == env.RESOLVED_RUN_ID) {
+                        echo "⏭  RUN_ID unchanged (${env.RESOLVED_RUN_ID}). Skipping to avoid duplicate builds."
+                        currentBuild.result = 'NOT_BUILT'
+                        // stop pipeline early (no post actions)
+                        return
+                    }
+
+                    echo "✅ New RUN_ID detected. last='${last}', current='${env.RESOLVED_RUN_ID}'"
                 }
             }
         }
@@ -107,6 +126,18 @@ pipeline {
             }
         }
 
+        stage('Mark RUN_ID as processed') {
+            steps {
+                sh '''
+                  set -euo pipefail
+                  # Update only after successful contract + import
+                  echo "${RESOLVED_RUN_ID}" > "${LAST_RUN_FILE}"
+                  chmod 600 "${LAST_RUN_FILE}" || true
+                  echo "📝 Stored last processed RUN_ID=${RESOLVED_RUN_ID} -> ${LAST_RUN_FILE}"
+                '''
+            }
+        }
+
         stage('Debug: show imported structure') {
             steps {
                 sh '''
@@ -116,36 +147,21 @@ pipeline {
                 '''
             }
         }
-
-        // ✅ Credentials (Option A): single "Username with password" credential (ilia + API token)
-        stage('Verify Jenkins API secrets (sanity)') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'jenkins_api',
-                    usernameVariable: 'JENKINS_USER',
-                    passwordVariable: 'JENKINS_API_TOKEN'
-                )]) {
-                    sh '''
-                      set -euo pipefail
-
-                      if [ -z "${JENKINS_URL:-}" ] || [ -z "${JENKINS_USER:-}" ] || [ -z "${JENKINS_API_TOKEN:-}" ]; then
-                        echo "❌ Missing Jenkins secrets (JENKINS_URL/JENKINS_USER/JENKINS_API_TOKEN)."
-                        exit 1
-                      fi
-
-                      echo "✅ Jenkins secrets are present (masked)."
-
-                      # Optional: quick auth check (do not print token)
-                      curl -sS -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" "${JENKINS_URL}/api/json" >/dev/null
-                      echo "✅ Jenkins API reachable with provided credentials."
-                    '''
-                }
-            }
-        }
     }
 
     post {
+        // ВАЖНО: post выполнится даже если currentBuild.result = NOT_BUILT,
+        // но мы можем мягко пропустить публикацию, если отчётов нет.
         always {
+            script {
+                // If we skipped early, reports/ likely does not exist.
+                def hasReports = sh(script: 'test -d reports && echo yes || echo no', returnStdout: true).trim() == 'yes'
+                if (!hasReports) {
+                    echo "ℹ️ No reports workspace (likely skipped). Post actions are skipped."
+                    return
+                }
+            }
+
             // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin) + анализатор
             // Contract expects at least one of these patterns to exist under reports/
             junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
