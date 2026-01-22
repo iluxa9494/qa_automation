@@ -45,14 +45,15 @@ jobs:
         run: |
           set -euo pipefail
           echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
-          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -lc '
-            set -eux
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -c '
+            set -ex
+
             echo "== java =="
             java -version || true
 
             echo "== env =="
-            echo "CLASSPATH=$CLASSPATH"
-            echo "JAVA_HOME=${JAVA_HOME:-<empty>}"
+            echo "CLASSPATH=${CLASSPATH-<empty>}"
+            echo "JAVA_HOME=${JAVA_HOME-<empty>}"
             echo "PATH=$PATH"
 
             echo "== pwd/ls =="
@@ -65,9 +66,7 @@ jobs:
             ls -la /opt 2>/dev/null || true
 
             echo "== find junit/gatling jars (first 200) =="
-            find / -maxdepth 6 -type f \
-              \( -iname "*junit*.jar" -o -iname "*gatling*.jar" -o -iname "*.jar" \) \
-              2>/dev/null | head -n 200
+            find / -maxdepth 6 -type f \( -iname "*junit*.jar" -o -iname "*gatling*.jar" -o -iname "*.jar" \) 2>/dev/null | head -n 200
           '
 
       - name: Run all QA tests (docker compose)
