@@ -1,110 +1,116 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")"
+
+# This script is intended to run INSIDE the qa_automation container.
+# It assumes mysql/mongodb are already started by docker-compose and reachable via service DNS names.
+
+cd /app
 
 LOCK_FILE="/tmp/qa_automation.lock"
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 
-mkdir -p reports/formy reports/databaseUsage reports/gatling reports/nested
+REPORTS_DIR="${REPORTS_DIR:-/reports}"
+mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
 
-detect_compose_cmd() {
-  if docker compose version >/dev/null 2>&1; then
-    echo "docker compose"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    echo "docker-compose"
-  else
-    echo ""
-  fi
-}
+# ---- helpers ----
+wait_for_tcp() {
+  local host="$1"
+  local port="$2"
+  local name="${3:-$host:$port}"
+  local tries="${4:-60}"
+  local sleep_s="${5:-2}"
 
-pick_compose_file() {
-  if [[ -n "${COMPOSE_FILE:-}" ]]; then
-    echo "$COMPOSE_FILE"
-    return 0
-  fi
-
-  local candidates=(
-    "docker-compose.ci.yml"
-    "docker-compose.ci.yaml"
-    "docker-compose.yml"
-    "docker-compose.yaml"
-    "compose.yml"
-    "compose.yaml"
-  )
-
-  local f
-  for f in "${candidates[@]}"; do
-    if [[ -f "$f" ]]; then
-      echo "$f"
+  echo "⏳ Waiting for ${name} (${host}:${port})..."
+  for i in $(seq 1 "$tries"); do
+    if (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1; then
+      echo "✅ ${name} is reachable"
       return 0
     fi
+    sleep "$sleep_s"
   done
-
-  echo ""
+  echo "❌ Timeout waiting for ${name} (${host}:${port})"
+  return 1
 }
 
-COMPOSE_CMD="$(detect_compose_cmd)"
-if [[ -z "$COMPOSE_CMD" ]]; then
-  echo "❌ Docker Compose не установлен." >&2
-  exit 1
-fi
-
-COMPOSE_FILE_RESOLVED="$(pick_compose_file)"
-if [[ -z "$COMPOSE_FILE_RESOLVED" ]]; then
-  echo "❌ Compose file not found. Expected docker-compose.ci.yml (or set COMPOSE_FILE)." >&2
-  exit 1
-fi
-
-echo "▶ Using compose: $COMPOSE_CMD -f $COMPOSE_FILE_RESOLVED"
-
-docker_compose() {
-  # shellcheck disable=SC2086
-  $COMPOSE_CMD -f "$COMPOSE_FILE_RESOLVED" "$@"
+copy_if_exists() {
+  local src="$1"
+  local dst="$2"
+  if [[ -e "$src" ]]; then
+    mkdir -p "$(dirname "$dst")"
+    rm -rf "$dst" 2>/dev/null || true
+    cp -a "$src" "$dst"
+  fi
 }
 
-cleanup() {
-  docker_compose down --remove-orphans >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+# ---- DB endpoints from env (override if needed) ----
+MYSQL_HOST="${MYSQL_HOST:-mysql}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
+MONGO_HOST="${MONGO_HOST:-mongodb}"
+MONGO_PORT="${MONGO_PORT:-27017}"
 
-list_services() {
-  docker_compose config --services 2>/dev/null || true
-}
+wait_for_tcp "$MYSQL_HOST" "$MYSQL_PORT" "MySQL"
+wait_for_tcp "$MONGO_HOST" "$MONGO_PORT" "MongoDB"
 
-service_exists() {
-  local s="$1"
-  list_services | grep -qx "$s"
-}
+# ---- run suites ----
+rc=0
 
-echo "▶ Compose services detected:"
-SERVICES="$(list_services)"
-if [[ -z "$SERVICES" ]]; then
-  echo "❌ Could not read services from compose. Check $COMPOSE_FILE_RESOLVED is valid." >&2
-  exit 1
-fi
-echo "$SERVICES" | sed 's/^/ - /'
-
-# sanity checks for your current compose
-service_exists "qa_automation" || { echo "❌ service qa_automation not found in compose"; exit 1; }
-service_exists "mysql"        || { echo "❌ service mysql not found in compose"; exit 1; }
-service_exists "mongodb"      || { echo "❌ service mongodb not found in compose"; exit 1; }
-
-echo "▶ Pulling latest images..."
-docker_compose pull || true
-
-echo "▶ Starting DB dependencies..."
-docker_compose up -d mysql mongodb
-
-echo "▶ Running qa_automation container (will execute all suites inside)..."
+echo "▶ Running DB tests..."
 set +e
-docker_compose up --no-deps --abort-on-container-exit --exit-code-from qa_automation qa_automation
-rc=$?
+/app/tools/run_database.sh
+db_rc=$?
 set -e
-echo "✔ qa_automation finished with rc=$rc"
+echo "✔ DB tests finished with rc=$db_rc"
+if [[ "$db_rc" != "0" ]]; then rc="$db_rc"; fi
 
-echo "▶ Generating QA Dashboard (reports/index.html)..."
-cat > reports/index.html <<'HTML'
+echo "▶ Running UI tests (Formy)..."
+set +e
+/app/tools/run_formy.sh
+ui_rc=$?
+set -e
+echo "✔ UI tests finished with rc=$ui_rc"
+if [[ "$ui_rc" != "0" && "$rc" == "0" ]]; then rc="$ui_rc"; fi
+
+echo "▶ Running load tests (Gatling)..."
+set +e
+/app/tools/run_gatling.sh
+gat_rc=$?
+set -e
+echo "✔ Gatling finished with rc=$gat_rc"
+if [[ "$gat_rc" != "0" && "$rc" == "0" ]]; then rc="$gat_rc"; fi
+
+# ---- collect reports into $REPORTS_DIR ----
+# Formy
+copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${REPORTS_DIR}/formy/cucumber.json"
+copy_if_exists "/app/formyProject/target/cucumber.html" "${REPORTS_DIR}/formy/cucumber.html"
+copy_if_exists "/app/formyProject/target/cucumber-html-report" "${REPORTS_DIR}/formy/cucumber-html-report"
+copy_if_exists "/app/formyProject/target/surefire-reports" "${REPORTS_DIR}/formy/surefire-reports"
+copy_if_exists "/app/formyProject/target/TEST-*.xml" "${REPORTS_DIR}/formy/" || true
+
+# DatabaseUsage
+copy_if_exists "/app/databaseUsage/target/cucumber/cucumber.json" "${REPORTS_DIR}/databaseUsage/cucumber.json"
+copy_if_exists "/app/databaseUsage/target/cucumber.html" "${REPORTS_DIR}/databaseUsage/cucumber.html"
+copy_if_exists "/app/databaseUsage/target/cucumber-html-report" "${REPORTS_DIR}/databaseUsage/cucumber-html-report"
+copy_if_exists "/app/databaseUsage/target/surefire-reports" "${REPORTS_DIR}/databaseUsage/surefire-reports"
+copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${REPORTS_DIR}/databaseUsage/" || true
+
+# Gatling
+# Common: target/gatling/latest (you also have target/gatling/* + lastRun.txt)
+copy_if_exists "/app/restfulBookerLoad/target/gatling" "${REPORTS_DIR}/gatling"
+# Ensure "latest" exists (Gatling usually maintains it)
+if [[ -d "${REPORTS_DIR}/gatling" && ! -d "${REPORTS_DIR}/gatling/latest" ]]; then
+  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+  if [[ -n "${latest_dir:-}" ]]; then
+    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest" 2>/dev/null || true
+  fi
+fi
+
+# Nested (if you generate it somewhere)
+copy_if_exists "/app/reports/nested" "${REPORTS_DIR}/nested" || true
+
+# ---- dashboard ----
+echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
+cat > "${REPORTS_DIR}/index.html" <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
@@ -125,7 +131,8 @@ cat > reports/index.html <<'HTML'
     <h2>UI tests (Formy)</h2>
     <ul>
       <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
-      <li>JSON: <code>reports/formy/cucumber.json</code></li>
+      <li>JSON: <code>formy/cucumber.json</code></li>
+      <li>JUnit XML: <code>formy/surefire-reports/*.xml</code></li>
     </ul>
   </div>
 
@@ -133,7 +140,8 @@ cat > reports/index.html <<'HTML'
     <h2>DB tests</h2>
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
-      <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
+      <li>JSON: <code>databaseUsage/cucumber.json</code></li>
+      <li>JUnit XML: <code>databaseUsage/surefire-reports/*.xml</code></li>
     </ul>
   </div>
 
@@ -146,18 +154,21 @@ cat > reports/index.html <<'HTML'
 </body>
 </html>
 HTML
-echo "✔ reports/index.html generated"
-ls -la reports || true
+echo "✔ ${REPORTS_DIR}/index.html generated"
 
-# если отчётов вообще нет — фейлим
-if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html ]]; then
+echo "▶ Reports directory listing:"
+ls -la "${REPORTS_DIR}" || true
+
+# ---- contract: at least some reports should exist ----
+if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
+   && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
+   && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi
 
-# Если контейнер вернул ошибку — фейлим workflow (но отчёты уже синкнутся)
 if [[ "$rc" != "0" ]]; then
-  echo "❌ qa_automation failed (rc=$rc) — failing build"
+  echo "❌ QA suites failed (rc=$rc) — failing build"
   exit 11
 fi
 

@@ -1,8 +1,3 @@
-# Dockerfile
-# Default base: selenium/standalone-chromium (Docker Hub)
-# You can override it in CI or on VPS:
-#   docker build --build-arg SELENIUM_BASE_IMAGE=ghcr.io/iluxa9494/mirror-selenium-standalone-chromium:latest .
-
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 
@@ -31,7 +26,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -eux; \
     apt-get update; \
-    apt-get install -y --no-install-recommends ca-certificates curl python3; \
+    apt-get install -y --no-install-recommends ca-certificates curl python3 util-linux; \
     \
     pick_pkg() { \
       if apt-cache show "$1" >/dev/null 2>&1; then echo "$1"; else echo "$2"; fi; \
@@ -68,8 +63,14 @@ COPY --from=builder /app/restfulBookerLoad /app/restfulBookerLoad
 COPY --from=builder /app/tools /app/tools
 
 RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
+
 COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
 RUN chmod +x /entrypoint-qa-dashboard.sh
+
+# ✅ контейнерный оркестратор CI (запускает /app/tools/run_*.sh и генерит reports/index.html)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
 RUN chown -R seluser:seluser /app
 
@@ -78,4 +79,8 @@ ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
 USER seluser
 
+# Делаем поведение предсказуемым: command в compose будет реально выполняться
+ENTRYPOINT ["/bin/bash", "-lc"]
+
+# По умолчанию образ может быть использован как "сервер отчётов" (VPS режим)
 CMD ["/entrypoint-qa-dashboard.sh"]

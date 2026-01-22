@@ -30,6 +30,7 @@ services:
       REPORTS_DIR: /reports
     volumes:
       - ./reports:/reports
+    command: ["/entrypoint.sh"]
     depends_on:
       mysql:
         condition: service_healthy
