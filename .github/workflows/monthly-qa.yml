@@ -117,6 +117,20 @@ jobs:
             echo "✔ Reports exist"
           fi
 
+          # ✅ Allure contract: reports/allure-results must exist and be non-empty
+          if [[ ! -d reports/allure-results ]]; then
+            echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+            echo "❌ Missing reports/allure-results (Allure results are required for Jenkins Allure plugin)"
+          else
+            if ! find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
+              echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+              echo "❌ reports/allure-results exists but is empty"
+            else
+              echo "ALLURE_EMPTY=0" >> "$GITHUB_ENV"
+              echo "✔ Allure results exist"
+            fi
+          fi
+
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
@@ -144,7 +158,7 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # If reports is empty scp would fail, but this step runs only when NO_REPORTS==0
+          # Upload everything (includes allure-results if present)
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
@@ -158,7 +172,7 @@ jobs:
             RUN_ID=\$(cat \"\$BASE/LATEST\")
             SRC=\"\$BASE/runs/\$RUN_ID\"
 
-            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" || true
+            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
             rm -f \"\$BASE/index.html\" || true
 
             cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
@@ -166,22 +180,18 @@ jobs:
             cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
             cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
             [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
+            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
 
             # Fix links to be BASE-root friendly
             sed -i 's#reports/##g' \"\$BASE/index.html\" || true
             sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
-
-            # Friendly stable entrypoints
-            ln -sfn \"cucumber.html\" \"\$BASE/formy/index.html\" || true
-            ln -sfn \"cucumber.html\" \"\$BASE/databaseUsage/index.html\" || true
-            ln -sfn \"latest/index.html\" \"\$BASE/gatling/index.html\" || true
 
             chmod -R a+rX \"\$BASE\" || true
             echo \"✅ Published \$RUN_ID\"
           "
 
       # ✅ Result: workflow does NOT fail when tests fail.
-      #    It fails ONLY if there are no reports at all (pipeline is broken).
+      #    It fails ONLY if pipeline is broken (no reports / no allure-results).
       - name: Finalize (do not fail on test failures)
         if: always()
         run: |
@@ -189,10 +199,16 @@ jobs:
 
           echo "▶ QA_RC=${QA_RC:-<unset>}"
           echo "▶ NO_REPORTS=${NO_REPORTS:-<unset>}"
+          echo "▶ ALLURE_EMPTY=${ALLURE_EMPTY:-<unset>}"
 
           if [[ "${NO_REPORTS:-1}" == "1" ]]; then
             echo "❌ No reports generated at all — failing build (pipeline broken)"
             exit 10
+          fi
+
+          if [[ "${ALLURE_EMPTY:-1}" == "1" ]]; then
+            echo "❌ Allure results missing/empty — failing build (pipeline broken)"
+            exit 12
           fi
 
           if [[ "${QA_RC:-0}" != "0" ]]; then

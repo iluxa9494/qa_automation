@@ -63,7 +63,6 @@ pipeline {
                     if (last && last == env.RESOLVED_RUN_ID) {
                         echo "⏭  RUN_ID unchanged (${env.RESOLVED_RUN_ID}). Skipping to avoid duplicate builds."
                         currentBuild.result = 'NOT_BUILT'
-                        // stop pipeline early (post will soft-skip if no reports/)
                         return
                     }
 
@@ -100,6 +99,17 @@ pipeline {
                   if [ ! -d "$SRC/gatling/latest" ]; then
                     echo "❌ Missing required directory: $SRC/gatling/latest"
                     exit 4
+                  fi
+
+                  # Allure contract (soft for now: warn until CI starts exporting it)
+                  if [ ! -d "$SRC/allure-results" ]; then
+                    echo "⚠️ Allure results folder is missing: $SRC/allure-results"
+                    echo "   Jenkins Allure tab will be empty until CI uploads allure-results/**"
+                  else
+                    if ! find "$SRC/allure-results" -type f -print -quit | grep -q .; then
+                      echo "⚠️ Allure results folder exists but is empty: $SRC/allure-results"
+                      echo "   Jenkins Allure tab will be empty until CI generates results."
+                    fi
                   fi
 
                   # JUnit contract: at least one XML should exist (any of the supported patterns)
@@ -170,66 +180,87 @@ pipeline {
                     echo "ℹ️ No reports workspace (likely skipped). Post actions are skipped."
                     return
                 }
+
+                // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin)
+                junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
+                      allowEmptyResults: true,
+                      keepLongStdio: true
+
+                // ✅ Allure: вкладка Allure + trend (если есть результаты)
+                def hasAllure = sh(script: 'test -d reports/allure-results && find reports/allure-results -type f -print -quit >/dev/null 2>&1 && echo yes || echo no', returnStdout: true).trim() == 'yes'
+                if (hasAllure) {
+                    allure(
+                        includeProperties: false,
+                        jdk: '',
+                        results: [[path: 'reports/allure-results']]
+                    )
+                } else {
+                    echo "ℹ️ No allure-results in this build (reports/allure-results is missing or empty)."
+                }
+
+                // Сохраняем артефакты билда — это и есть «история» в Jenkins
+                archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
+
+                // Главный index (если он реально приезжает в reports/)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports',
+                    reportFiles:           'index.html',
+                    reportName:            'QA Dashboard'
+                ])
+
+                // Formy: cucumber.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/formy',
+                    reportFiles:           'cucumber.html',
+                    reportName:            'UI tests (Formy)'
+                ])
+
+                // Formy: cucumber-html-report/index.html (если есть)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/formy/cucumber-html-report',
+                    reportFiles:           'index.html',
+                    reportName:            'UI tests (Formy) — Cucumber HTML Report'
+                ])
+
+                // Database usage: cucumber.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/databaseUsage',
+                    reportFiles:           'cucumber.html',
+                    reportName:            'DB tests'
+                ])
+
+                // Database usage: cucumber-html-report/index.html (если есть)
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/databaseUsage/cucumber-html-report',
+                    reportFiles:           'index.html',
+                    reportName:            'DB tests (Cucumber HTML Report)'
+                ])
+
+                // Gatling: reports/gatling/latest/index.html
+                publishHTML(target: [
+                    allowMissing:          true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll:               true,
+                    reportDir:             'reports/gatling/latest',
+                    reportFiles:           'index.html',
+                    reportName:            'Load tests (Gatling)'
+                ])
             }
-
-            // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin) + анализатор
-            // Contract expects at least one of these patterns to exist under reports/
-            junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
-                  allowEmptyResults: true,
-                  keepLongStdio: true
-
-            // Сохраняем артефакты билда — это и есть «история» в Jenkins
-            archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
-
-            // Главный index (если он реально приезжает в reports/)
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports',
-                reportFiles:           'index.html',
-                reportName:            'QA Dashboard'
-            ])
-
-            // Formy: у тебя по факту reports/formy/cucumber.html (не index.html)
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/formy',
-                reportFiles:           'cucumber.html',
-                reportName:            'UI tests (Formy)'
-            ])
-
-            // Database usage: у тебя реально есть reports/databaseUsage/cucumber.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage',
-                reportFiles:           'cucumber.html',
-                reportName:            'DB tests'
-            ])
-
-            // Если в reports/databaseUsage/cucumber-html-report есть index.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/databaseUsage/cucumber-html-report',
-                reportFiles:           'index.html',
-                reportName:            'DB tests (Cucumber HTML Report)'
-            ])
-
-            // Gatling: reports/gatling/latest/index.html
-            publishHTML(target: [
-                allowMissing:          true,
-                alwaysLinkToLastBuild: true,
-                keepAll:               true,
-                reportDir:             'reports/gatling/latest',
-                reportFiles:           'index.html',
-                reportName:            'Load tests (Gatling)'
-            ])
         }
     }
 }

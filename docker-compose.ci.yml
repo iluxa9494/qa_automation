@@ -26,9 +26,10 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
-    # ❗️В CI НЕ ПЕРЕОПРЕДЕЛЯЕМ user, чтобы не потерять доступ к /app и jar'ам
     environment:
       REPORTS_DIR: /reports
+      # (optional) makes it explicit for debugging/consistency
+      ALLURE_RESULTS_DIR: /reports/allure-results
     volumes:
       - ./reports:/reports
     command: ["/entrypoint.sh"]
