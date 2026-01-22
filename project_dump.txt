@@ -10,60 +10,88 @@ mkdir -p "${REPORTS_DIR}"
 exec python3 -m http.server "${PORT}" --directory "${REPORTS_DIR}"
 
 //tools/run_gatling.sh//
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_gatling.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_DIR="/app/restfulBookerLoad"
-REPORT_DIR="/reports/gatling"
-JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
+BASE_DIR="/app/restfulBookerLoad"
 
+# Maven module (там лежит target/deps)
+MODULE_DIR="${BASE_DIR}"
+if [[ -d "${BASE_DIR}/restfulBookerLoad" ]]; then
+  MODULE_DIR="${BASE_DIR}/restfulBookerLoad"
+fi
+
+# Root target (там лежит target/classes и target/test-classes)
+ROOT_TARGET="${BASE_DIR}/target"
+if [[ -d "${BASE_DIR}/target" ]]; then
+  ROOT_TARGET="${BASE_DIR}/target"
+fi
+
+REPORT_DIR="${REPORTS_DIR:-/reports}/gatling"
+JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
 mkdir -p "${REPORT_DIR}"
 
-cd "${MODULE_DIR}"
+# Рабочая директория — root проекта
+cd "${BASE_DIR}"
 
-CP="${MODULE_DIR}/target/deps/*:${MODULE_DIR}/target/classes:${MODULE_DIR}/target/test-classes"
+DEPS_DIR="${MODULE_DIR}/target/deps"
+
+CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
+
+echo "▶ [gatling] BASE_DIR=${BASE_DIR}"
+echo "▶ [gatling] MODULE_DIR=${MODULE_DIR}"
+echo "▶ [gatling] ROOT_TARGET=${ROOT_TARGET}"
+echo "▶ [gatling] DEPS_DIR=${DEPS_DIR}"
+echo "▶ [gatling] CP=${CP}"
 
 java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
   -s simulations.GETBookingFixedDurationLoadCheck \
   -rf "${REPORT_DIR}"
-
-LAST_DIR="$(ls -1dt "${REPORT_DIR}"/*/ 2>/dev/null | grep -v "/latest/" | head -n 1 || true)"
-if [[ -n "${LAST_DIR}" ]]; then
-  rm -rf "${REPORT_DIR}/latest"
-  mkdir -p "${REPORT_DIR}/latest"
-  cp -a "${LAST_DIR%/}"/. "${REPORT_DIR}/latest/"
-else
-  echo "⚠ Gatling report directory not found in ${REPORT_DIR}"
-  exit 2
-fi
-
 //tools/run_formy.sh//
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_formy.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_DIR="/app/formyProject"
-REPORT_DIR="/reports/formy"
-JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
+BASE_DIR="/app/formyProject"
 
+# Maven module (там лежит target/deps)
+MODULE_DIR="${BASE_DIR}"
+if [[ -d "${BASE_DIR}/formyProject" ]]; then
+  MODULE_DIR="${BASE_DIR}/formyProject"
+fi
+
+# Root target (там лежит target/classes и target/test-classes)
+ROOT_TARGET="${BASE_DIR}/target"
+if [[ -d "${BASE_DIR}/target" ]]; then
+  ROOT_TARGET="${BASE_DIR}/target"
+fi
+
+REPORT_DIR="${REPORTS_DIR:-/reports}/formy"
+JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-mkdir -p "${REPORT_DIR}/cucumber-html-report" "${REPORT_DIR}/surefire"
+mkdir -p "${REPORT_DIR}"
 
+export DISPLAY=:99
 Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &
 
-cd "${MODULE_DIR}"
+# Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
+cd "${BASE_DIR}"
 
-CP="${MODULE_DIR}/target/deps/*:${MODULE_DIR}/target/classes:${MODULE_DIR}/target/test-classes"
+DEPS_DIR="${MODULE_DIR}/target/deps"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.cucumber.core.cli.Main \
-  --plugin pretty \
-  --plugin "json:${REPORT_DIR}/cucumber.json" \
-  --plugin "html:${REPORT_DIR}/cucumber-html-report" \
-  --glue Steps \
-  src/test/features
+CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
 
+echo "▶ [formy] BASE_DIR=${BASE_DIR}"
+echo "▶ [formy] MODULE_DIR=${MODULE_DIR}"
+echo "▶ [formy] ROOT_TARGET=${ROOT_TARGET}"
+echo "▶ [formy] DEPS_DIR=${DEPS_DIR}"
+echo "▶ [formy] CP=${CP}"
+
+java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
 //tools/NestedReportGenerator.java//
 package tools;
 
@@ -569,28 +597,44 @@ public class NestedReportGenerator {
     }
 }
 //tools/run_database.sh//
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_database.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-MODULE_DIR="/app/databaseUsage"
-REPORT_DIR="/reports/databaseUsage"
-JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
+BASE_DIR="/app/databaseUsage"
 
+# Maven module (там лежит target/deps)
+MODULE_DIR="${BASE_DIR}"
+if [[ -d "${BASE_DIR}/databaseUsage" ]]; then
+  MODULE_DIR="${BASE_DIR}/databaseUsage"
+fi
+
+# Root target (там лежит target/classes и target/test-classes)
+ROOT_TARGET="${BASE_DIR}/target"
+if [[ -d "${BASE_DIR}/target" ]]; then
+  ROOT_TARGET="${BASE_DIR}/target"
+fi
+
+REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
+JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-mkdir -p "${REPORT_DIR}/surefire"
+mkdir -p "${REPORT_DIR}"
 
-cd "${MODULE_DIR}"
+# Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
+cd "${BASE_DIR}"
 
-CP="${MODULE_DIR}/target/deps/*:${MODULE_DIR}/target/classes:${MODULE_DIR}/target/test-classes"
+DEPS_DIR="${MODULE_DIR}/target/deps"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.cucumber.core.cli.Main \
-  --plugin pretty \
-  --plugin "json:${REPORT_DIR}/cucumber.json" \
-  --plugin "html:${REPORT_DIR}/cucumber.html" \
-  --glue Steps \
-  src/test/features
+CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
 
+echo "▶ [databaseUsage] BASE_DIR=${BASE_DIR}"
+echo "▶ [databaseUsage] MODULE_DIR=${MODULE_DIR}"
+echo "▶ [databaseUsage] ROOT_TARGET=${ROOT_TARGET}"
+echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
+echo "▶ [databaseUsage] CP=${CP}"
+
+java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
 //LICENSE//
 MIT License
 
@@ -643,7 +687,7 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
-    user: "${USER_ID}:${GROUP_ID}"
+    # ❗️В CI НЕ ПЕРЕОПРЕДЕЛЯЕМ user, чтобы не потерять доступ к /app и jar'ам
     environment:
       REPORTS_DIR: /reports
     volumes:
@@ -878,13 +922,11 @@ import org.junit.runner.RunWith;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         features = "src/test/features",
-        glue = {"Steps"},
+        glue = "Steps",
         plugin = {
                 "pretty",
-                // HTML репорт должен быть ФАЙЛОМ
-                "html:target/cucumber.html",
-                // JSON для агрегации/дженкинса и nested report
-                "json:target/cucumber/cucumber.json"
+                "json:/reports/databaseUsage/cucumber.json",
+                "html:/reports/databaseUsage/cucumber.html"
         },
         monochrome = true
 )
@@ -1391,6 +1433,7 @@ fi
 echo "✔ All QA test suites finished successfully"
 //Dockerfile//
 # /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
+# (оставляем логику как есть — она рабочая; фиксим именно tools/run_*.sh)
 ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
 ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
 
@@ -1460,7 +1503,6 @@ RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_g
 COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
 RUN chmod +x /entrypoint-qa-dashboard.sh
 
-# ✅ контейнерный оркестратор CI (запускает /app/tools/run_*.sh и генерит reports/index.html)
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -1472,10 +1514,7 @@ ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
 USER seluser
 
-# Делаем поведение предсказуемым: command в compose будет реально выполняться
 ENTRYPOINT ["/bin/bash", "-lc"]
-
-# По умолчанию образ может быть использован как "сервер отчётов" (VPS режим)
 CMD ["/entrypoint-qa-dashboard.sh"]
 //restfulBookerLoad/pom.xml//
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -1505,7 +1544,7 @@ CMD ["/entrypoint-qa-dashboard.sh"]
     </properties>
 
     <dependencies>
-        <!-- Рекомендуемый стек Gatling для Scala DSL -->
+        <!-- Gatling charts bundle (Scala DSL) -->
         <dependency>
             <groupId>io.gatling.highcharts</groupId>
             <artifactId>gatling-charts-highcharts</artifactId>
@@ -1513,6 +1552,15 @@ CMD ["/entrypoint-qa-dashboard.sh"]
             <scope>test</scope>
         </dependency>
 
+        <!-- IMPORTANT: provides io.gatling.app.Gatling main class -->
+        <dependency>
+            <groupId>io.gatling</groupId>
+            <artifactId>gatling-app</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Optional -->
         <dependency>
             <groupId>io.gatling</groupId>
             <artifactId>gatling-test-framework</artifactId>
@@ -1520,7 +1568,7 @@ CMD ["/entrypoint-qa-dashboard.sh"]
             <scope>test</scope>
         </dependency>
 
-        <!-- Логи (опционально, но удобно для репортов Gatling) -->
+        <!-- Logging (optional) -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -1531,7 +1579,7 @@ CMD ["/entrypoint-qa-dashboard.sh"]
 
     <build>
         <plugins>
-            <!-- Java compiler под 17 -->
+            <!-- Java compiler 17 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -1542,7 +1590,7 @@ CMD ["/entrypoint-qa-dashboard.sh"]
                 </configuration>
             </plugin>
 
-            <!-- Scala plugin, чтобы собирать src/test/scala -->
+            <!-- Scala compile for src/test/scala -->
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
@@ -1565,14 +1613,12 @@ CMD ["/entrypoint-qa-dashboard.sh"]
                 </configuration>
             </plugin>
 
-            <!-- Gatling Maven Plugin -->
+            <!-- Gatling Maven Plugin (handy for local mvn runs; runtime container uses java directly) -->
             <plugin>
                 <groupId>io.gatling</groupId>
                 <artifactId>gatling-maven-plugin</artifactId>
                 <version>${gatling.plugin.version}</version>
 
-                <!-- ВАЖНО: добавляем highcharts как зависимость плагина,
-                     чтобы ComponentLibrary гарантированно был в classpath -->
                 <dependencies>
                     <dependency>
                         <groupId>io.gatling.highcharts</groupId>
@@ -1590,12 +1636,9 @@ CMD ["/entrypoint-qa-dashboard.sh"]
                         </goals>
                     </execution>
                 </executions>
+
                 <configuration>
-                    <!-- Конкретная Simulation, которую мы хотим гонять через mvn test -->
                     <simulationClass>simulations.GETBookingFixedDurationLoadCheck</simulationClass>
-                    <!-- Если когда-нибудь захочешь запускать все симуляции:
-                    <runMultipleSimulations>true</runMultipleSimulations>
-                    -->
                 </configuration>
             </plugin>
         </plugins>
@@ -2325,6 +2368,7 @@ echo " - JSON (module): databaseUsage/target/cucumber/cucumber.json"
 echo " - HTML (jenkins): reports/databaseUsage/cucumber.html"
 echo " - JSON (jenkins): reports/databaseUsage/cucumber.json"
 //.github/workflows/monthly-qa.yml//
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/.github/workflows/monthly-qa.yml
 name: Monthly QA Run
 
 on:
@@ -2339,12 +2383,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
+    env:
+      QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Prepare workspace for docker volumes
         run: |
+          set -euo pipefail
           mkdir -p reports
           chmod 0777 reports
 
@@ -2352,69 +2400,113 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         run: |
-          if [ -n "$GHCR_TOKEN" ]; then
+          set -euo pipefail
+          if [ -n "${GHCR_TOKEN:-}" ]; then
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           else
             echo "GHCR_TOKEN not set; skipping login"
           fi
 
+      - name: Pull docker images (compose)
+        run: |
+          set -euo pipefail
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          docker compose -f docker-compose.ci.yml pull || true
+
+      # ✅ ВРЕМЕННЫЙ DEBUG-ШАГ: после pull / перед запуском
+      - name: Debug QA image contents (tmp)
+        run: |
+          set -euo pipefail
+          echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -c '
+            set -ex
+
+            echo "== whoami/id =="
+            whoami || true
+            id || true
+
+            echo "== java =="
+            java -version || true
+
+            echo "== env (safe) =="
+            echo "CLASSPATH=${CLASSPATH-<empty>}"
+            echo "JAVA_HOME=${JAVA_HOME-<empty>}"
+            echo "PATH=$PATH"
+
+            echo "== entrypoint presence =="
+            ls -la /entrypoint.sh 2>/dev/null || true
+            echo "--- head /entrypoint.sh ---"
+            head -n 200 /entrypoint.sh 2>/dev/null || true
+
+            echo "== filesystem hints =="
+            ls -la /  || true
+            ls -la /app 2>/dev/null || true
+            ls -la /work 2>/dev/null || true
+            ls -la /opt 2>/dev/null || true
+
+            echo "== find junit/gatling jars (first 200) =="
+            find / -maxdepth 8 -type f \
+              \( -iname "*junit*.jar" -o -iname "*hamcrest*.jar" -o -iname "*gatling*.jar" -o -iname "*scala*.jar" -o -iname "*.jar" \) \
+              2>/dev/null | head -n 200
+          '
+
       - name: Run all QA tests (docker compose)
-        env:
-          QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
+        id: run_qa
         run: |
           set -euo pipefail
 
-          export USER_ID="$(id -u)"
-          export GROUP_ID="$(id -g)"
-
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
-          echo "▶ USER_ID:GROUP_ID = ${USER_ID}:${GROUP_ID}"
-
-          docker compose -f docker-compose.ci.yml pull || true
-
           echo "▶ Starting DB dependencies..."
           docker compose -f docker-compose.ci.yml up -d mysql mongodb
 
           echo "▶ Running qa_automation..."
           set +e
-          docker compose -f docker-compose.ci.yml up --no-deps --abort-on-container-exit --exit-code-from qa_automation qa_automation
+          docker compose -f docker-compose.ci.yml up \
+            --no-deps \
+            --abort-on-container-exit \
+            --exit-code-from qa_automation \
+            qa_automation
           rc=$?
           set -e
 
+          echo "QA_RC=$rc" >> "$GITHUB_ENV"
           echo "✔ qa_automation finished with rc=$rc"
+
           echo "▶ Reports on host:"
           ls -la reports || true
 
           echo "▶ Cleanup..."
           docker compose -f docker-compose.ci.yml down --remove-orphans || true
 
-          # если отчётов вообще нет — фейлим
-          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html ]]; then
-            echo "❌ No reports generated at all — failing build"
-            exit 10
+          # Проверяем, появились ли отчёты вообще
+          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html && ! -f reports/index.html ]]; then
+            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
+            echo "❌ No reports generated at all"
+          else
+            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
+            echo "✔ Reports exist"
           fi
 
-          # Если контейнер вернул ошибку — фейлим workflow (но отчёты уже есть)
-          if [[ "$rc" != "0" ]]; then
-            echo "❌ qa_automation failed (rc=$rc) — failing build"
-            exit 11
-          fi
-
-          echo "✔ All QA test suites finished successfully"
+          # ВАЖНО: здесь НЕ фейлим job, чтобы успеть синкнуть отчёты на VPS/в Jenkins
+          exit 0
 
       - name: Sync reports to VPS (versioned)
+        if: always() && env.NO_REPORTS == '0'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
-          if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ] || [ -z "$VPS_SSH_KEY" ]; then
+          set -euo pipefail
+
+          if [ -z "${VPS_HOST:-}" ] || [ -z "${VPS_USER:-}" ] || [ -z "${VPS_SSH_KEY:-}" ]; then
             echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
             exit 1
           fi
 
           RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
-          echo "RUN_ID=$RUN_ID" >> $GITHUB_ENV
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "▶ RUN_ID=$RUN_ID"
 
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
@@ -2429,23 +2521,47 @@ jobs:
             "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
 
       - name: Trigger Jenkins ingest
+        if: always() && env.NO_REPORTS == '0'
         env:
           JENKINS_URL: ${{ secrets.JENKINS_URL }}
           JENKINS_USER: ${{ secrets.JENKINS_USER }}
           JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
         run: |
-          if [ -z "$JENKINS_URL" ] || [ -z "$JENKINS_USER" ] || [ -z "$JENKINS_API_TOKEN" ]; then
+          set -euo pipefail
+
+          if [ -z "${JENKINS_URL:-}" ] || [ -z "${JENKINS_USER:-}" ] || [ -z "${JENKINS_API_TOKEN:-}" ]; then
             echo "Missing Jenkins secrets (JENKINS_URL/JENKINS_USER/JENKINS_API_TOKEN)."
             exit 1
           fi
 
           if [ -z "${RUN_ID:-}" ]; then
-            echo "RUN_ID is empty. Previous step didn't export it to GITHUB_ENV."
+            echo "RUN_ID is empty. Sync step didn't export it to GITHUB_ENV."
             exit 2
           fi
 
           curl -sS -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
             -X POST "$JENKINS_URL/job/qa_automation_ingest/buildWithParameters?RUN_ID=${RUN_ID}"
+
+      # ✅ Финальный фейл уже ПОСЛЕ синка
+      - name: Fail workflow if QA failed
+        if: always()
+        run: |
+          set -euo pipefail
+
+          echo "▶ QA_RC=${QA_RC:-<unset>}"
+          echo "▶ NO_REPORTS=${NO_REPORTS:-<unset>}"
+
+          if [[ "${NO_REPORTS:-1}" == "1" ]]; then
+            echo "❌ No reports generated at all — failing build"
+            exit 10
+          fi
+
+          if [[ "${QA_RC:-0}" != "0" ]]; then
+            echo "❌ qa_automation failed (rc=${QA_RC}) — failing build"
+            exit 11
+          fi
+
+          echo "✔ All QA test suites finished successfully"
 //.github/workflows/ghcr.yml//
 name: Build and push qa_automation image to GHCR
 
@@ -11386,13 +11502,11 @@ import org.junit.runner.RunWith;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         features = "src/test/features",
-        glue = {"Steps"},
+        glue = "Steps",
         plugin = {
                 "pretty",
-                // ✅ HTML plugin должен писать в ФАЙЛ, а не в папку
-                "html:target/cucumber.html",
-                // ✅ JSON для Nested Data
-                "json:target/cucumber/cucumber.json"
+                "json:/reports/formy/cucumber.json",
+                "html:/reports/formy/cucumber.html"
         },
         monochrome = true
 )

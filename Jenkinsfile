@@ -1,5 +1,11 @@
+// /Users/ilia/IdeaProjects/pet_projects/qa_automation/Jenkinsfile
 pipeline {
     agent any
+
+    // ✅ Schedule-as-code: run примерно раз в 10 минут (hash-based, чтобы не долбить ровно в минуту)
+    triggers {
+        cron('H/10 * * * *')
+    }
 
     options {
         timestamps()
@@ -23,6 +29,9 @@ pipeline {
 
     environment {
         QA_BASE = "/home/pet_projects/qa_automation/reports"
+
+        // Jenkins connection (via nginx + SSL)
+        JENKINS_URL = "https://jenkins.murashkin.dev"
     }
 
     stages {
@@ -105,6 +114,32 @@ pipeline {
                   echo "📦 Imported reports structure (depth=4):"
                   (command -v tree >/dev/null 2>&1 && tree -L 4 reports) || find reports -maxdepth 4 -type f | sed 's#^# - #'
                 '''
+            }
+        }
+
+        // ✅ Credentials (Option A): single "Username with password" credential (ilia + API token)
+        stage('Verify Jenkins API secrets (sanity)') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'jenkins_api',
+                    usernameVariable: 'JENKINS_USER',
+                    passwordVariable: 'JENKINS_API_TOKEN'
+                )]) {
+                    sh '''
+                      set -euo pipefail
+
+                      if [ -z "${JENKINS_URL:-}" ] || [ -z "${JENKINS_USER:-}" ] || [ -z "${JENKINS_API_TOKEN:-}" ]; then
+                        echo "❌ Missing Jenkins secrets (JENKINS_URL/JENKINS_USER/JENKINS_API_TOKEN)."
+                        exit 1
+                      fi
+
+                      echo "✅ Jenkins secrets are present (masked)."
+
+                      # Optional: quick auth check (do not print token)
+                      curl -sS -u "${JENKINS_USER}:${JENKINS_API_TOKEN}" "${JENKINS_URL}/api/json" >/dev/null
+                      echo "✅ Jenkins API reachable with provided credentials."
+                    '''
+                }
             }
         }
     }

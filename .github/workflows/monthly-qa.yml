@@ -117,7 +117,7 @@ jobs:
             echo "✔ Reports exist"
           fi
 
-          # ВАЖНО: здесь НЕ фейлим job, чтобы успеть синкнуть отчёты на VPS/в Jenkins
+          # ВАЖНО: здесь НЕ фейлим job, чтобы успеть синкнуть отчёты на VPS
           exit 0
 
       - name: Sync reports to VPS (versioned)
@@ -144,33 +144,12 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
+          # ВАЖНО: если reports пустой — scp упадёт, но этот шаг вызывается только при NO_REPORTS==0
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
-
-      - name: Trigger Jenkins ingest
-        if: always() && env.NO_REPORTS == '0'
-        env:
-          JENKINS_URL: ${{ secrets.JENKINS_URL }}
-          JENKINS_USER: ${{ secrets.JENKINS_USER }}
-          JENKINS_API_TOKEN: ${{ secrets.JENKINS_API_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${JENKINS_URL:-}" ] || [ -z "${JENKINS_USER:-}" ] || [ -z "${JENKINS_API_TOKEN:-}" ]; then
-            echo "Missing Jenkins secrets (JENKINS_URL/JENKINS_USER/JENKINS_API_TOKEN)."
-            exit 1
-          fi
-
-          if [ -z "${RUN_ID:-}" ]; then
-            echo "RUN_ID is empty. Sync step didn't export it to GITHUB_ENV."
-            exit 2
-          fi
-
-          curl -sS -u "$JENKINS_USER:$JENKINS_API_TOKEN" \
-            -X POST "$JENKINS_URL/job/qa_automation_ingest/buildWithParameters?RUN_ID=${RUN_ID}"
 
       # ✅ Финальный фейл уже ПОСЛЕ синка
       - name: Fail workflow if QA failed
