@@ -43,7 +43,7 @@ jobs:
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
           docker compose -f docker-compose.ci.yml pull || true
 
-      # ✅ ВРЕМЕННЫЙ DEBUG-ШАГ: после pull / перед запуском
+      # ✅ TEMP DEBUG: after pull / before run
       - name: Debug QA image contents (tmp)
         run: |
           set -euo pipefail
@@ -108,7 +108,7 @@ jobs:
           echo "▶ Cleanup..."
           docker compose -f docker-compose.ci.yml down --remove-orphans || true
 
-          # Проверяем, появились ли отчёты вообще
+          # Check if reports exist at all
           if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html && ! -f reports/index.html ]]; then
             echo "NO_REPORTS=1" >> "$GITHUB_ENV"
             echo "❌ No reports generated at all"
@@ -117,10 +117,10 @@ jobs:
             echo "✔ Reports exist"
           fi
 
-          # ВАЖНО: здесь НЕ фейлим job, чтобы успеть синкнуть отчёты на VPS
+          # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
-      - name: Sync reports to VPS (versioned)
+      - name: Sync reports to VPS (versioned + publish latest)
         if: always() && env.NO_REPORTS == '0'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -144,7 +144,7 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # ВАЖНО: если reports пустой — scp упадёт, но этот шаг вызывается только при NO_REPORTS==0
+          # If reports is empty scp would fail, but this step runs only when NO_REPORTS==0
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
@@ -167,12 +167,21 @@ jobs:
             cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
             [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
 
+            # Fix links to be BASE-root friendly
+            sed -i 's#reports/##g' \"\$BASE/index.html\" || true
+            sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
+
+            # Friendly stable entrypoints
+            ln -sfn \"cucumber.html\" \"\$BASE/formy/index.html\" || true
+            ln -sfn \"cucumber.html\" \"\$BASE/databaseUsage/index.html\" || true
+            ln -sfn \"latest/index.html\" \"\$BASE/gatling/index.html\" || true
+
             chmod -R a+rX \"\$BASE\" || true
             echo \"✅ Published \$RUN_ID\"
           "
 
-      # ✅ Итог: workflow НЕ падает от упавших тестов.
-      #    Падает ТОЛЬКО если отчётов нет вообще (инфра/пайплайн сломан).
+      # ✅ Result: workflow does NOT fail when tests fail.
+      #    It fails ONLY if there are no reports at all (pipeline is broken).
       - name: Finalize (do not fail on test failures)
         if: always()
         run: |
