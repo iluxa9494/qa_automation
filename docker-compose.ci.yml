@@ -6,8 +6,6 @@ services:
       MYSQL_DATABASE: qa
       MYSQL_USER: qa
       MYSQL_PASSWORD: qa
-    ports:
-      - "3306:3306"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
       interval: 5s
@@ -16,8 +14,6 @@ services:
 
   mongodb:
     image: mongo:6
-    ports:
-      - "27017:27017"
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
       interval: 5s
@@ -37,3 +33,31 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+
+  # временный debug-сервис
+  qa_debug:
+    image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
+    entrypoint: ["sh", "-lc"]
+    command: |
+      set -eux
+      echo "== id =="
+      id
+      echo "== java =="
+      java -version || true
+
+      echo "== env =="
+      echo "CLASSPATH=${CLASSPATH-<empty>}"
+      echo "JAVA_HOME=${JAVA_HOME-<empty>}"
+      echo "PATH=$PATH"
+
+      echo "== entrypoint =="
+      ls -la /entrypoint.sh || true
+      sed -n "1,200p" /entrypoint.sh 2>/dev/null || true
+
+      echo "== find junit/gatling jars (first 200) =="
+      find / -maxdepth 8 -type f \( -iname "*junit*.jar" -o -iname "*gatling*.jar" \) 2>/dev/null | head -n 200
+
+      echo "== list likely app dirs =="
+      ls -la /app 2>/dev/null || true
+      ls -la /work 2>/dev/null || true
+      ls -la /opt 2>/dev/null || true
