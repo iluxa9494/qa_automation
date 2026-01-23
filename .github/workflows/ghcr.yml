@@ -2,7 +2,7 @@ name: Build and push qa_automation image to GHCR
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch: {}
 
 permissions:
