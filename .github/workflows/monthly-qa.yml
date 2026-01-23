@@ -134,7 +134,7 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
-      - name: Sync reports to VPS (versioned + publish latest)
+      - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -148,6 +148,7 @@ jobs:
             exit 1
           fi
 
+          # Use a stable ID (UTC). Keep same format used by cleanup_runs.sh (folder name).
           RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           echo "▶ RUN_ID=$RUN_ID"
@@ -155,39 +156,81 @@ jobs:
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
 
+          # Ensure runs/<RUN_ID> exists on VPS
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # Upload everything (includes allure-results if present)
+          # Upload run artifacts into versioned folder
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
-          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
-            "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
-
-          # ✅ Publish latest run to BASE root (NO symlinks; python http.server friendly)
+          # Atomically update pointers on VPS:
+          # - LATEST file (atomic write)
+          # - current symlink -> runs/<RUN_ID>
+          # - root symlinks -> current/*
+          # No copies, no duplicates.
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
+
             BASE=/home/pet_projects/qa_automation/reports
-            RUN_ID=\$(cat \"\$BASE/LATEST\")
+            RUN_ID='$RUN_ID'
+
+            # ---- atomic helpers ----
+            atomic_write() {
+              local path=\"\$1\"
+              local content=\"\$2\"
+              local tmp
+              tmp=\$(mktemp \"\${path}.tmp.XXXXXX\")
+              printf '%s' \"\$content\" > \"\$tmp\"
+              mv -f \"\$tmp\" \"\$path\"
+            }
+
+            atomic_link() {
+              local target=\"\$1\"
+              local linkpath=\"\$2\"
+              ln -sfn \"\$target\" \"\$linkpath\"
+            }
+
             SRC=\"\$BASE/runs/\$RUN_ID\"
+            if [ ! -d \"\$SRC\" ]; then
+              echo \"❌ Missing uploaded run folder: \$SRC\"
+              exit 2
+            fi
 
-            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
-            rm -f \"\$BASE/index.html\" || true
+            # ---- contract sanity (light) ----
+            if [ ! -d \"\$SRC/formy\" ] || [ ! -d \"\$SRC/databaseUsage\" ] || [ ! -d \"\$SRC/gatling\" ]; then
+              echo \"❌ Contract failed: missing required dirs under \$SRC\"
+              exit 3
+            fi
 
-            cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
-            cp -a \"\$SRC/formy\" \"\$BASE/formy\"
-            cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
-            cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
-            [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
-            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
+            # ---- pointers (single source of truth) ----
+            atomic_write \"\$BASE/LATEST\" \"\$RUN_ID\"
+            atomic_link \"runs/\$RUN_ID\" \"\$BASE/current\"
 
-            # Fix links to be BASE-root friendly
-            sed -i 's#reports/##g' \"\$BASE/index.html\" || true
-            sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
+            # Root view for dashboard server (python http.server follows symlinks)
+            atomic_link \"current/index.html\"        \"\$BASE/index.html\"
+            atomic_link \"current/formy\"             \"\$BASE/formy\"
+            atomic_link \"current/databaseUsage\"     \"\$BASE/databaseUsage\"
+            atomic_link \"current/gatling\"           \"\$BASE/gatling\"
+            atomic_link \"current/allure-results\"    \"\$BASE/allure-results\"
+            atomic_link \"current/nested\"            \"\$BASE/nested\"
 
-            chmod -R a+rX \"\$BASE\" || true
-            echo \"✅ Published \$RUN_ID\"
+            # ---- permissions (best effort) ----
+            # Container on VPS serves reports as read-only, but we keep consistent ownership/ACL for future writes/cleanup.
+            CONTAINER_UID=1200
+            CONTAINER_GID=1201
+            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$BASE\" || true
+            find \"\$BASE\" -type d -exec chmod 2775 {} \; || true
+            find \"\$BASE\" -type f -exec chmod 664  {} \; || true
+
+            if command -v setfacl >/dev/null 2>&1; then
+              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+            fi
+
+            echo \"✅ Published pointers for \$RUN_ID\"
+            echo \" - \$BASE/LATEST -> \$RUN_ID\"
+            echo \" - \$BASE/current -> runs/\$RUN_ID\"
           "
 
       # ✅ Result: workflow does NOT fail when tests fail.

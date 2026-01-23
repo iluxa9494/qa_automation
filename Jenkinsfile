@@ -12,14 +12,11 @@ pipeline {
         disableConcurrentBuilds()
         timeout(time: 30, unit: 'MINUTES')
 
-        // Хранение истории билдов/артефактов:
-        // 60 билдов при cron H/10 — это ~10 часов истории.
-        // Если хочешь месяцы — ставь daysToKeepStr / artifactDaysToKeepStr.
+        // Храним ТОЛЬКО последние 10 билдов/артефактов.
+        // По времени НЕ ограничиваем (daysToKeepStr НЕ задаём).
         buildDiscarder(logRotator(
             numToKeepStr: '10',
             artifactNumToKeepStr: '10'
-            // daysToKeepStr: '30',
-            // artifactDaysToKeepStr: '10'
         ))
     }
 
@@ -103,7 +100,7 @@ pipeline {
                     exit 4
                   fi
 
-                  # Allure contract (hard: if you require Allure always)
+                  # Allure contract (hard)
                   if [ ! -d "$SRC/allure-results" ]; then
                     echo "❌ Allure results folder is missing: $SRC/allure-results"
                     exit 5
@@ -197,7 +194,7 @@ pipeline {
                     echo "ℹ️ No allure-results in this build (reports/allure-results is missing or empty)."
                 }
 
-                // ✅ Артефакты = история по билдам
+                // ✅ Артефакты = история по билдам (и она ограничена buildDiscarder'ом)
                 archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
                 // ✅ HTML Publisher

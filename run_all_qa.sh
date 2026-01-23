@@ -5,16 +5,28 @@ set -euo pipefail
 # Intended to run INSIDE the qa_automation container.
 cd /app
 
-LOCK_FILE="/tmp/qa_automation.lock"
+REPORTS_DIR="${REPORTS_DIR:-/reports}"
+RUNS_DIR="${REPORTS_DIR}/runs"
+
+# Prefer lock inside /reports so it is shared across container restarts/workspaces
+LOCK_FILE="${REPORTS_DIR}/.qa_automation.lock"
+mkdir -p "${RUNS_DIR}"
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 
-REPORTS_DIR="${REPORTS_DIR:-/reports}"
-mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
+# Run identity:
+# - Prefer RUN_ID from env (can be injected by CI)
+# - Else generate UTC timestamp id
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%d-%H%M%S)}"
+RUN_DIR="${RUNS_DIR}/${RUN_ID}"
 
-# ✅ Allure results (one folder per run)
-rm -rf "${REPORTS_DIR}/allure-results" || true
-mkdir -p "${REPORTS_DIR}/allure-results"
+# We store everything ONLY inside runs/<RUN_ID>
+mkdir -p \
+  "${RUN_DIR}/formy" \
+  "${RUN_DIR}/databaseUsage" \
+  "${RUN_DIR}/gatling" \
+  "${RUN_DIR}/nested" \
+  "${RUN_DIR}/allure-results"
 
 # ---- helpers ----
 wait_for_tcp() {
@@ -25,7 +37,7 @@ wait_for_tcp() {
   local sleep_s="${5:-2}"
 
   echo "⏳ Waiting for ${name} (${host}:${port})..."
-  for i in $(seq 1 "$tries"); do
+  for _ in $(seq 1 "$tries"); do
     if (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1; then
       echo "✅ ${name} is reachable"
       return 0
@@ -59,6 +71,23 @@ run_with_timeout() {
   fi
 }
 
+# Atomic write helper (same filesystem)
+atomic_write_file() {
+  local path="$1"
+  local content="$2"
+  local tmp
+  tmp="$(mktemp "${path}.tmp.XXXXXX")"
+  printf "%s" "$content" > "$tmp"
+  mv -f "$tmp" "$path"
+}
+
+# Symlink helper (atomic replace)
+atomic_symlink() {
+  local target="$1"
+  local linkpath="$2"
+  ln -sfn "$target" "$linkpath"
+}
+
 # ---- DB endpoints from env (override if needed) ----
 MYSQL_HOST="${MYSQL_HOST:-mysql}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
@@ -71,8 +100,12 @@ wait_for_tcp "$MONGO_HOST" "$MONGO_PORT" "MongoDB"
 # ---- run suites ----
 rc=0
 
-# ✅ Make sure all suites write Allure into the same base dir
-export ALLURE_RESULTS_DIR="${REPORTS_DIR}/allure-results"
+# ✅ All suites must write Allure into THIS run folder
+export ALLURE_RESULTS_DIR="${RUN_DIR}/allure-results"
+
+echo "▶ RUN_ID=${RUN_ID}"
+echo "▶ RUN_DIR=${RUN_DIR}"
+echo "▶ ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
 echo "▶ Running DB tests..."
 set +e
@@ -98,43 +131,40 @@ set -e
 echo "✔ Gatling finished with rc=$gat_rc"
 if [[ "$gat_rc" != "0" && "$rc" == "0" ]]; then rc="$gat_rc"; fi
 
-# ---- collect reports into $REPORTS_DIR ----
-# Cucumber plugins may already write into /reports; we still copy for consistency.
+# ---- collect reports into RUN_DIR ----
 
 # Formy
-copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${REPORTS_DIR}/formy/cucumber.json"
-copy_if_exists "/app/formyProject/target/cucumber.html" "${REPORTS_DIR}/formy/cucumber.html"
-copy_if_exists "/app/formyProject/target/cucumber-html-report" "${REPORTS_DIR}/formy/cucumber-html-report"
-copy_if_exists "/app/formyProject/target/surefire-reports" "${REPORTS_DIR}/formy/surefire-reports"
-# If something still writes TEST-*.xml into target:
-copy_if_exists "/app/formyProject/target/TEST-*.xml" "${REPORTS_DIR}/formy/" || true
+copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${RUN_DIR}/formy/cucumber.json"
+copy_if_exists "/app/formyProject/target/cucumber.html" "${RUN_DIR}/formy/cucumber.html"
+copy_if_exists "/app/formyProject/target/cucumber-html-report" "${RUN_DIR}/formy/cucumber-html-report"
+copy_if_exists "/app/formyProject/target/surefire-reports" "${RUN_DIR}/formy/surefire-reports"
+copy_if_exists "/app/formyProject/target/TEST-*.xml" "${RUN_DIR}/formy/" || true
 
 # DatabaseUsage
-copy_if_exists "/app/databaseUsage/target/cucumber/cucumber.json" "${REPORTS_DIR}/databaseUsage/cucumber.json"
-copy_if_exists "/app/databaseUsage/target/cucumber.html" "${REPORTS_DIR}/databaseUsage/cucumber.html"
-copy_if_exists "/app/databaseUsage/target/cucumber-html-report" "${REPORTS_DIR}/databaseUsage/cucumber-html-report"
-copy_if_exists "/app/databaseUsage/target/surefire-reports" "${REPORTS_DIR}/databaseUsage/surefire-reports"
-copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${REPORTS_DIR}/databaseUsage/" || true
+copy_if_exists "/app/databaseUsage/target/cucumber/cucumber.json" "${RUN_DIR}/databaseUsage/cucumber.json"
+copy_if_exists "/app/databaseUsage/target/cucumber.html" "${RUN_DIR}/databaseUsage/cucumber.html"
+copy_if_exists "/app/databaseUsage/target/cucumber-html-report" "${RUN_DIR}/databaseUsage/cucumber-html-report"
+copy_if_exists "/app/databaseUsage/target/surefire-reports" "${RUN_DIR}/databaseUsage/surefire-reports"
+copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${RUN_DIR}/databaseUsage/" || true
 
 # Gatling
-copy_if_exists "/app/restfulBookerLoad/target/gatling" "${REPORTS_DIR}/gatling"
+copy_if_exists "/app/restfulBookerLoad/target/gatling" "${RUN_DIR}/gatling"
 
-# Ensure gatling/latest points to the newest run dir under reports/gatling/
-# Recreate symlink deterministically.
-if [[ -d "${REPORTS_DIR}/gatling" ]]; then
-  rm -f "${REPORTS_DIR}/gatling/latest" || true
-  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+# Ensure RUN_DIR/gatling/latest -> newest simulation dir under RUN_DIR/gatling/
+if [[ -d "${RUN_DIR}/gatling" ]]; then
+  rm -f "${RUN_DIR}/gatling/latest" || true
+  latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
-    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest"
+    ln -s "$(basename "$latest_dir")" "${RUN_DIR}/gatling/latest"
   fi
 fi
 
-# Nested (optional: if you generate it somewhere)
-copy_if_exists "/app/reports/nested" "${REPORTS_DIR}/nested" || true
+# Nested (optional)
+copy_if_exists "/app/reports/nested" "${RUN_DIR}/nested" || true
 
-# ---- dashboard ----
-echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
-cat > "${REPORTS_DIR}/index.html" <<'HTML'
+# ---- dashboard (per-run) ----
+echo "▶ Generating QA Dashboard (${RUN_DIR}/index.html)..."
+cat > "${RUN_DIR}/index.html" <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
@@ -188,27 +218,43 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
 </body>
 </html>
 HTML
-echo "✔ ${REPORTS_DIR}/index.html generated"
+echo "✔ ${RUN_DIR}/index.html generated"
 
-echo "▶ Reports directory listing:"
-ls -la "${REPORTS_DIR}" || true
-
-echo "▶ Allure results listing (first 200 files):"
-find "${REPORTS_DIR}/allure-results" -type f 2>/dev/null | head -n 200 || true
-
-# ---- contract: at least some reports should exist ----
-if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
-   && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
-   && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
+# ---- contract checks (before moving pointers) ----
+if [[ ! -f "${RUN_DIR}/formy/cucumber.json" \
+   && ! -f "${RUN_DIR}/databaseUsage/cucumber.json" \
+   && ! -f "${RUN_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi
 
-# ✅ contract: allure-results must contain at least one file (not just empty dirs)
-if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
-  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build as pipeline broken"
+if ! find "${RUN_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure results are missing/empty (${RUN_DIR}/allure-results) — failing build as pipeline broken"
   exit 12
 fi
+
+# ---- update pointers (single source of truth, atomic) ----
+# IMPORTANT: link to RUN_ID path, not to an absolute dir, to avoid "symlink-to-symlink" chains.
+atomic_write_file "${REPORTS_DIR}/LATEST" "${RUN_ID}"
+
+atomic_symlink "runs/${RUN_ID}" "${REPORTS_DIR}/current"
+
+# Current-view symlinks (always point to "current/...", never to absolute RUN_DIR)
+atomic_symlink "current/index.html" "${REPORTS_DIR}/index.html"
+atomic_symlink "current/formy" "${REPORTS_DIR}/formy"
+atomic_symlink "current/databaseUsage" "${REPORTS_DIR}/databaseUsage"
+atomic_symlink "current/gatling" "${REPORTS_DIR}/gatling"
+atomic_symlink "current/allure-results" "${REPORTS_DIR}/allure-results"
+
+echo "🧷 Updated pointers:"
+echo " - LATEST=${REPORTS_DIR}/LATEST -> ${RUN_ID}"
+echo " - current=${REPORTS_DIR}/current -> runs/${RUN_ID}"
+
+echo "▶ RUN_DIR listing:"
+ls -la "${RUN_DIR}" || true
+
+echo "▶ Allure results listing (first 200 files):"
+find "${RUN_DIR}/allure-results" -type f 2>/dev/null | head -n 200 || true
 
 # If any suite failed — fail build (reports already collected)
 if [[ "$rc" != "0" ]]; then
