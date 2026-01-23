@@ -1,4 +1,4 @@
-# Dockerfile
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
 FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     chromium-driver \
     fonts-liberation \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # ✅ Allure CLI (для генерации HTML отчёта на VPS/в CI)
@@ -40,23 +41,24 @@ RUN chmod +x /entrypoint.sh /entrypoint-qa-dashboard.sh /app/run_all_qa.sh \
     /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
 
 # ✅ Build-time compilation + deps (so /target/deps exists in the image)
+# NOTE: RUN uses /bin/sh by default, so we wrap commands in bash -lc to use pipefail.
 
 # formyProject
-RUN set -euo pipefail; \
+RUN bash -lc 'set -euo pipefail; \
     cd /app/formyProject; \
     mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile
+    mvn -B -q -DskipTests test-compile'
 
 # databaseUsage
-RUN set -euo pipefail; \
+RUN bash -lc 'set -euo pipefail; \
     cd /app/databaseUsage; \
     mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile
+    mvn -B -q -DskipTests test-compile'
 
 # restfulBookerLoad (scala testCompile + deps for gatling main class)
-RUN set -euo pipefail; \
+RUN bash -lc 'set -euo pipefail; \
     cd /app/restfulBookerLoad; \
     mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile
+    mvn -B -q -DskipTests test-compile'
 
 ENTRYPOINT ["/entrypoint.sh"]
