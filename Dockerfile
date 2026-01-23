@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium-browser \
     && rm -rf /var/lib/apt/lists/*
 
-# ✅ Allure CLI (для генерации HTML отчёта на VPS/в CI)
+# Allure CLI
 RUN set -eux; \
     curl -fsSL -o /tmp/allure.tgz \
       "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz"; \
@@ -36,5 +36,24 @@ COPY docker-compose.ci.yml /app/docker-compose.ci.yml
 
 RUN chmod +x /entrypoint.sh /entrypoint-qa-dashboard.sh /app/run_all_qa.sh \
     /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
+
+# ✅ Build-time compilation + deps (so /target/deps exists in the image)
+# formyProject
+RUN set -euo pipefail; \
+    cd /app/formyProject; \
+    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
+    mvn -B -q -DskipTests test-compile
+
+# databaseUsage
+RUN set -euo pipefail; \
+    cd /app/databaseUsage; \
+    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
+    mvn -B -q -DskipTests test-compile
+
+# restfulBookerLoad (scala testCompile + deps for gatling main class)
+RUN set -euo pipefail; \
+    cd /app/restfulBookerLoad; \
+    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
+    mvn -B -q -DskipTests test-compile
 
 ENTRYPOINT ["/entrypoint.sh"]
