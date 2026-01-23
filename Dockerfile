@@ -1,5 +1,5 @@
 # Dockerfile
-FROM ubuntu:22.04
+FROM debian:bookworm-slim
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ALLURE_VERSION=2.29.0
@@ -7,13 +7,15 @@ ARG ALLURE_VERSION=2.29.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl unzip tar gzip \
     python3 \
-    openjdk-17-jre \
+    openjdk-17-jre-headless \
     maven \
     xvfb \
-    chromium-browser \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-# Allure CLI
+# ✅ Allure CLI (для генерации HTML отчёта на VPS/в CI)
 RUN set -eux; \
     curl -fsSL -o /tmp/allure.tgz \
       "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz"; \
@@ -38,6 +40,7 @@ RUN chmod +x /entrypoint.sh /entrypoint-qa-dashboard.sh /app/run_all_qa.sh \
     /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
 
 # ✅ Build-time compilation + deps (so /target/deps exists in the image)
+
 # formyProject
 RUN set -euo pipefail; \
     cd /app/formyProject; \
