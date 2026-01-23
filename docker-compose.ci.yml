@@ -1,3 +1,4 @@
+# docker-compose.ci.yml
 services:
   mysql:
     image: mysql:8.0
@@ -28,7 +29,7 @@ services:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
     environment:
       REPORTS_DIR: /reports
-      # (optional) makes it explicit for debugging/consistency
+      # explicit for debugging/consistency
       ALLURE_RESULTS_DIR: /reports/allure-results
     volumes:
       - ./reports:/reports

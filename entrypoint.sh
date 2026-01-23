@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
+# entrypoint.sh
 set -euo pipefail
 
 REPORTS_DIR="${REPORTS_DIR:-/reports}"
 
-mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
+mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested" "${REPORTS_DIR}/allure-results"
 
 echo "▶ QA container runner started"
 echo "▶ Reports dir: ${REPORTS_DIR}"
 echo "▶ JAVA_OPTS: ${JAVA_OPTS:-<empty>}"
+
+# Make sure all suites write Allure into the same base dir
+export ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR}/allure-results}"
 
 rc_formy=0
 rc_db=0
@@ -55,7 +59,16 @@ fi
 
 echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}"
 
-echo "▶ Generating QA Dashboard (reports/index.html)..."
+# Ensure gatling/latest exists if Gatling produced target reports under /reports/gatling/<timestamp>/
+if [[ -d "${REPORTS_DIR}/gatling" ]]; then
+  rm -f "${REPORTS_DIR}/gatling/latest" || true
+  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+  if [[ -n "${latest_dir:-}" ]]; then
+    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest" 2>/dev/null || true
+  fi
+fi
+
+echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
 cat > "${REPORTS_DIR}/index.html" <<'HTML'
 <!doctype html>
 <html lang="en">
@@ -76,8 +89,10 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
   <div class="card">
     <h2>UI tests (Formy)</h2>
     <ul>
-      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
-      <li>JSON: <code>reports/formy/cucumber.json</code></li>
+      <li>HTML: <a href="formy/cucumber.html">open</a></li>
+      <li>HTML (Cucumber Report): <a href="formy/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>formy/cucumber.json</code></li>
+      <li>JUnit XML: <code>formy/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -85,7 +100,9 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <h2>DB tests</h2>
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
-      <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
+      <li>HTML (Cucumber Report): <a href="databaseUsage/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>databaseUsage/cucumber.json</code></li>
+      <li>JUnit XML: <code>databaseUsage/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -95,13 +112,21 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
       <li>HTML: <a href="gatling/latest/index.html">open</a></li>
     </ul>
   </div>
+
+  <div class="card">
+    <h2>Allure</h2>
+    <ul>
+      <li>Allure Results: <code>allure-results/</code></li>
+      <li>Open Allure tab in Jenkins (left menu)</li>
+    </ul>
+  </div>
 </body>
 </html>
 HTML
 echo "✔ ${REPORTS_DIR}/index.html generated"
 ls -la "${REPORTS_DIR}" || true
 
-# если отчётов вообще нет — фейлим
+# If no reports at all — fail
 if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
    && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
@@ -109,7 +134,13 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
   exit 10
 fi
 
-# если хотя бы одна suite упала — фейлим, но отчёты уже есть
+# Allure must be non-empty (hard contract)
+if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build"
+  exit 12
+fi
+
+# If any suite failed — fail, but reports remain
 if [[ "${rc_formy}" -ne 0 || "${rc_db}" -ne 0 || "${rc_gatling}" -ne 0 ]]; then
   echo "❌ One or more suites failed — failing build"
   exit 11
