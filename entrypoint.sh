@@ -4,7 +4,13 @@ set -euo pipefail
 
 REPORTS_DIR="${REPORTS_DIR:-/reports}"
 
-mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested" "${REPORTS_DIR}/allure-results"
+mkdir -p \
+  "${REPORTS_DIR}/formy" \
+  "${REPORTS_DIR}/databaseUsage" \
+  "${REPORTS_DIR}/gatling" \
+  "${REPORTS_DIR}/nested" \
+  "${REPORTS_DIR}/allure-results" \
+  "${REPORTS_DIR}/allure-report"
 
 echo "▶ QA container runner started"
 echo "▶ Reports dir: ${REPORTS_DIR}"
@@ -68,6 +74,24 @@ if [[ -d "${REPORTS_DIR}/gatling" ]]; then
   fi
 fi
 
+# ✅ Contract: Allure results must exist and be non-empty
+if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build"
+  exit 12
+fi
+
+# ✅ Generate Allure HTML report (static)
+echo "▶ Generating Allure HTML report (${REPORTS_DIR}/allure-report)..."
+rm -rf "${REPORTS_DIR}/allure-report"/*
+allure generate "${REPORTS_DIR}/allure-results" -o "${REPORTS_DIR}/allure-report" --clean
+
+# ✅ Contract: Allure report must have index.html
+if [[ ! -f "${REPORTS_DIR}/allure-report/index.html" ]]; then
+  echo "❌ Allure report was not generated (missing allure-report/index.html) — failing build"
+  exit 12
+fi
+echo "✔ Allure report generated"
+
 echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
 cat > "${REPORTS_DIR}/index.html" <<'HTML'
 <!doctype html>
@@ -116,8 +140,8 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
   <div class="card">
     <h2>Allure</h2>
     <ul>
-      <li>Allure Results: <code>allure-results/</code></li>
-      <li>Open Allure tab in Jenkins (left menu)</li>
+      <li>Report (HTML): <a href="allure-report/index.html">open</a></li>
+      <li>Raw results: <code>allure-results/</code></li>
     </ul>
   </div>
 </body>
@@ -132,12 +156,6 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
-fi
-
-# Allure must be non-empty (hard contract)
-if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
-  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build"
-  exit 12
 fi
 
 # If any suite failed — fail, but reports remain
