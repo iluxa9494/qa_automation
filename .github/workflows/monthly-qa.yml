@@ -42,6 +42,30 @@ jobs:
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
           docker compose -f docker-compose.ci.yml pull || true
 
+      # Полезно, пока чиним Gatling в образе (покажет: есть ли вообще gatling внутри)
+      - name: Debug QA image (gatling/allure hints)
+        run: |
+          set -euo pipefail
+          echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -lc '
+            set -e
+
+            echo "== java =="
+            java -version || true
+
+            echo "== gatling presence =="
+            command -v gatling.sh || true
+            ls -la /opt/gatling 2>/dev/null || true
+
+            echo "== jars quick-scan (first 50) =="
+            if command -v find >/dev/null 2>&1; then
+              find / -maxdepth 6 -type f \( -name "*.jar" -o -name "gatling.sh" \) 2>/dev/null | head -n 50
+            else
+              echo "find not available in image"
+              ls -la /  || true
+            fi
+          '
+
       - name: Run all QA tests (docker compose)
         id: run_qa
         run: |
@@ -70,19 +94,46 @@ jobs:
           echo "▶ Cleanup..."
           docker compose -f docker-compose.ci.yml down --remove-orphans || true
 
-          # Check if reports exist at all (dashboard needs at least something)
-          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html && ! -f reports/index.html ]]; then
-            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
-            echo "❌ No reports generated at all"
-          else
-            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
-            echo "✔ Reports exist"
+          # --- Robust reports detection ---
+          has_any_reports=0
+
+          # 1) Allure results (preferred contract for VPS generation)
+          if [[ -d reports/allure-results ]]; then
+            if find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
+              has_any_reports=1
+            fi
           fi
 
-          # ✅ Allure contract: reports/allure-results must exist and be non-empty
+          # 2) Allure HTML (optional, if generated in CI)
+          if [[ -f reports/allure-report/index.html ]]; then
+            has_any_reports=1
+          fi
+
+          # 3) Web/API suite artifacts (any file)
+          if find reports/formy -type f -print -quit >/dev/null 2>&1; then
+            has_any_reports=1
+          fi
+          if find reports/databaseUsage -type f -print -quit >/dev/null 2>&1; then
+            has_any_reports=1
+          fi
+
+          # 4) Gatling HTML (if load succeeded)
+          if [[ -f reports/gatling/latest/index.html ]]; then
+            has_any_reports=1
+          fi
+
+          if [[ "$has_any_reports" == "1" ]]; then
+            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
+            echo "✔ Reports exist"
+          else
+            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
+            echo "❌ No reports generated at all"
+          fi
+
+          # --- Contract: allure-results must exist and be non-empty ---
           if [[ ! -d reports/allure-results ]]; then
             echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
-            echo "❌ Missing reports/allure-results (Allure results are required; HTML is generated on VPS)"
+            echo "❌ Missing reports/allure-results (required for VPS Allure generation)"
           else
             if ! find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
               echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
@@ -150,13 +201,18 @@ jobs:
               exit 2
             fi
 
-            # ---- contract sanity (light) ----
+            # light contract
             if [ ! -d \"\$SRC/formy\" ] || [ ! -d \"\$SRC/databaseUsage\" ] || [ ! -d \"\$SRC/gatling\" ]; then
               echo \"❌ Contract failed: missing required dirs under \$SRC\"
               exit 3
             fi
 
-            # ---- pointers (single source of truth) ----
+            # required for VPS allure generation
+            if [ ! -d \"\$SRC/allure-results\" ]; then
+              echo \"❌ Contract failed: missing allure-results under \$SRC\"
+              exit 4
+            fi
+
             atomic_write \"\$BASE/LATEST\" \"\$RUN_ID\"
             atomic_link \"runs/\$RUN_ID\" \"\$BASE/current\"
 
@@ -169,34 +225,20 @@ jobs:
             atomic_link \"current/allure-report\"     \"\$BASE/allure-report\"
             atomic_link \"current/nested\"            \"\$BASE/nested\"
 
+            CONTAINER_UID=1200
+            CONTAINER_GID=1201
+            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$BASE\" || true
+            find \"\$BASE\" -type d -exec chmod 2775 {} \; || true
+            find \"\$BASE\" -type f -exec chmod 664  {} \; || true
+
+            if command -v setfacl >/dev/null 2>&1; then
+              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+            fi
+
             echo \"✅ Published pointers for \$RUN_ID\"
           "
 
-      - name: Trigger Allure generation on VPS (restart dashboard container)
-        if: always() && env.NO_REPORTS == '0'
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          set -euo pipefail
-
-          if [ -z "${VPS_HOST:-}" ] || [ -z "${VPS_USER:-}" ] || [ -z "${VPS_SSH_KEY:-}" ]; then
-            echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
-            exit 1
-          fi
-
-          echo "$VPS_SSH_KEY" > /tmp/vps_key
-          chmod 600 /tmp/vps_key
-
-          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
-            set -euo pipefail
-            docker restart qa_automation >/dev/null 2>&1 || true
-            echo '✅ qa_automation restarted (Allure HTML will be regenerated from allure-results)'
-          "
-
-      # ✅ Result: workflow does NOT fail when tests fail.
-      #    It fails ONLY if pipeline is broken (no reports / no allure-results).
       - name: Finalize (do not fail on test failures)
         if: always()
         run: |
