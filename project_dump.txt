@@ -51,7 +51,6 @@ java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
   -s simulations.GETBookingFixedDurationLoadCheck \
   -rf "${REPORT_DIR}"
 //tools/run_formy.sh//
-# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_formy.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -65,28 +64,33 @@ fi
 
 # Root target (там лежит target/classes и target/test-classes)
 ROOT_TARGET="${BASE_DIR}/target"
-if [[ -d "${BASE_DIR}/target" ]]; then
-  ROOT_TARGET="${BASE_DIR}/target"
-fi
 
-REPORT_DIR="${REPORTS_DIR:-/reports}/formy"
+REPORTS_BASE="${REPORTS_DIR:-/reports}"
+REPORT_DIR="${REPORTS_BASE}/formy"
+
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-# ✅ Allure results dir shared for whole run
-ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
-mkdir -p "${ALLURE_RESULTS_DIR}"
+# ✅ Allure results dir (отдельная подпапка под suite)
+ALLURE_BASE_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_BASE}/allure-results}"
+ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/formy"
 
-mkdir -p "${REPORT_DIR}"
+mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
+# ---- Xvfb ----
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &
+XVFB_PID=$!
+
+cleanup() {
+  kill "${XVFB_PID}" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
 # Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
 cd "${BASE_DIR}"
 
 DEPS_DIR="${MODULE_DIR}/target/deps"
-
 CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
 
 echo "▶ [formy] BASE_DIR=${BASE_DIR}"
@@ -96,9 +100,16 @@ echo "▶ [formy] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [formy] CP=${CP}"
 echo "▶ [formy] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
+if [[ ! -d "${DEPS_DIR}" ]]; then
+  echo "❌ Missing deps dir: ${DEPS_DIR}"
+  echo "   (You likely forgot to run mvn dependency:copy-dependencies during image build)"
+  exit 21
+fi
+
 java "${JAVA_OPTS_ARR[@]}" \
   -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+  -cp "${CP}" \
+  org.junit.runner.JUnitCore CucumberRun
 //tools/NestedReportGenerator.java//
 package tools;
 
@@ -604,7 +615,6 @@ public class NestedReportGenerator {
     }
 }
 //tools/run_database.sh//
-# /Users/ilia/IdeaProjects/pet_projects/qa_automation/tools/run_database.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -618,25 +628,23 @@ fi
 
 # Root target (там лежит target/classes и target/test-classes)
 ROOT_TARGET="${BASE_DIR}/target"
-if [[ -d "${BASE_DIR}/target" ]]; then
-  ROOT_TARGET="${BASE_DIR}/target"
-fi
 
-REPORT_DIR="${REPORTS_DIR:-/reports}/databaseUsage"
+REPORTS_BASE="${REPORTS_DIR:-/reports}"
+REPORT_DIR="${REPORTS_BASE}/databaseUsage"
+
+# ✅ Allure results dir (отдельная подпапка под suite)
+ALLURE_BASE_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_BASE}/allure-results}"
+ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/databaseUsage"
+
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-# ✅ Allure results dir shared for whole run
-ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR:-/reports}/allure-results}"
-mkdir -p "${ALLURE_RESULTS_DIR}"
+mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
-mkdir -p "${REPORT_DIR}"
-
-# Рабочая директория — root проекта, чтобы относительные пути/ресурсы работали ожидаемо
+# Рабочая директория — root проекта
 cd "${BASE_DIR}"
 
 DEPS_DIR="${MODULE_DIR}/target/deps"
-
 CP="${DEPS_DIR}/*:${ROOT_TARGET}/classes:${ROOT_TARGET}/test-classes"
 
 echo "▶ [databaseUsage] BASE_DIR=${BASE_DIR}"
@@ -646,9 +654,17 @@ echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [databaseUsage] CP=${CP}"
 echo "▶ [databaseUsage] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
+# Базовые проверки, чтобы не зависать на пустом classpath
+if [[ ! -d "${DEPS_DIR}" ]]; then
+  echo "❌ Missing deps dir: ${DEPS_DIR}"
+  echo "   (You likely forgot to run mvn dependency:copy-dependencies during image build)"
+  exit 21
+fi
+
 java "${JAVA_OPTS_ARR[@]}" \
   -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-  -cp "${CP}" org.junit.runner.JUnitCore CucumberRun
+  -cp "${CP}" \
+  org.junit.runner.JUnitCore CucumberRun
 //LICENSE//
 MIT License
 
@@ -673,6 +689,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 //docker-compose.ci.yml//
+# docker-compose.ci.yml
 services:
   mysql:
     image: mysql:8.0
@@ -703,7 +720,7 @@ services:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
     environment:
       REPORTS_DIR: /reports
-      # (optional) makes it explicit for debugging/consistency
+      # explicit for debugging/consistency
       ALLURE_RESULTS_DIR: /reports/allure-results
     volumes:
       - ./reports:/reports
@@ -736,7 +753,7 @@ services:
 
         <jackson.version>2.17.2</jackson.version>
 
-        <!-- Allure -->
+        <!-- ✅ Allure -->
         <allure.version>2.29.0</allure.version>
 
         <maven.surefire.version>3.2.5</maven.surefire.version>
@@ -836,13 +853,12 @@ services:
                 </configuration>
             </plugin>
 
-            <!-- ✅ Exec Maven Plugin (запуск генератора) -->
+            <!-- Exec Maven Plugin (если используешь генератор) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.maven.plugin.version}</version>
                 <configuration>
-                    <!-- Генератор лежит в src/test/java -->
                     <classpathScope>test</classpathScope>
                     <mainClass>tools.NestedReportGenerator</mainClass>
                 </configuration>
@@ -950,13 +966,15 @@ import org.junit.runner.RunWith;
         glue = "Steps",
         plugin = {
                 "pretty",
+
+                // ✅ отчёты
                 "json:/reports/databaseUsage/cucumber.json",
                 "html:/reports/databaseUsage/cucumber.html",
 
                 // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
 
-                // ✅ Allure results
+                // ✅ Allure (Cucumber 6 adapter)
                 "io.qameta.allure.cucumber6jvm.AllureCucumber6Jvm"
         },
         monochrome = true
@@ -1288,23 +1306,34 @@ public class DatabaseUsageMongoDB {
 }
 //run_all_qa.sh//
 #!/usr/bin/env bash
+# run_all_qa.sh
 set -euo pipefail
 
-# This script is intended to run INSIDE the qa_automation container.
-# It assumes mysql/mongodb are already started by docker-compose and reachable via service DNS names.
-
+# Intended to run INSIDE the qa_automation container.
 cd /app
 
-LOCK_FILE="/tmp/qa_automation.lock"
+REPORTS_DIR="${REPORTS_DIR:-/reports}"
+RUNS_DIR="${REPORTS_DIR}/runs"
+
+# Prefer lock inside /reports so it is shared across container restarts/workspaces
+LOCK_FILE="${REPORTS_DIR}/.qa_automation.lock"
+mkdir -p "${RUNS_DIR}"
 exec 200>"$LOCK_FILE"
 flock -n 200 || { echo "❌ QA already running (lock: $LOCK_FILE)"; exit 2; }
 
-REPORTS_DIR="${REPORTS_DIR:-/reports}"
-mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
+# Run identity:
+# - Prefer RUN_ID from env (can be injected by CI)
+# - Else generate UTC timestamp id
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%d-%H%M%S)}"
+RUN_DIR="${RUNS_DIR}/${RUN_ID}"
 
-# ✅ Allure results (one folder per run)
-rm -rf "${REPORTS_DIR}/allure-results" || true
-mkdir -p "${REPORTS_DIR}/allure-results"
+# We store everything ONLY inside runs/<RUN_ID>
+mkdir -p \
+  "${RUN_DIR}/formy" \
+  "${RUN_DIR}/databaseUsage" \
+  "${RUN_DIR}/gatling" \
+  "${RUN_DIR}/nested" \
+  "${RUN_DIR}/allure-results"
 
 # ---- helpers ----
 wait_for_tcp() {
@@ -1315,7 +1344,7 @@ wait_for_tcp() {
   local sleep_s="${5:-2}"
 
   echo "⏳ Waiting for ${name} (${host}:${port})..."
-  for i in $(seq 1 "$tries"); do
+  for _ in $(seq 1 "$tries"); do
     if (echo >/dev/tcp/"$host"/"$port") >/dev/null 2>&1; then
       echo "✅ ${name} is reachable"
       return 0
@@ -1336,6 +1365,36 @@ copy_if_exists() {
   fi
 }
 
+run_with_timeout() {
+  local name="$1"
+  local t="$2"
+  shift 2
+  if command -v timeout >/dev/null 2>&1; then
+    echo "⏱  Timeout for ${name}: ${t}"
+    timeout --preserve-status "$t" "$@"
+  else
+    echo "⚠️  'timeout' not found; running ${name} without timeout"
+    "$@"
+  fi
+}
+
+# Atomic write helper (same filesystem)
+atomic_write_file() {
+  local path="$1"
+  local content="$2"
+  local tmp
+  tmp="$(mktemp "${path}.tmp.XXXXXX")"
+  printf "%s" "$content" > "$tmp"
+  mv -f "$tmp" "$path"
+}
+
+# Symlink helper (atomic replace)
+atomic_symlink() {
+  local target="$1"
+  local linkpath="$2"
+  ln -sfn "$target" "$linkpath"
+}
+
 # ---- DB endpoints from env (override if needed) ----
 MYSQL_HOST="${MYSQL_HOST:-mysql}"
 MYSQL_PORT="${MYSQL_PORT:-3306}"
@@ -1348,9 +1407,16 @@ wait_for_tcp "$MONGO_HOST" "$MONGO_PORT" "MongoDB"
 # ---- run suites ----
 rc=0
 
+# ✅ All suites must write Allure into THIS run folder
+export ALLURE_RESULTS_DIR="${RUN_DIR}/allure-results"
+
+echo "▶ RUN_ID=${RUN_ID}"
+echo "▶ RUN_DIR=${RUN_DIR}"
+echo "▶ ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
+
 echo "▶ Running DB tests..."
 set +e
-/app/tools/run_database.sh
+run_with_timeout "DB tests" "25m" /app/tools/run_database.sh
 db_rc=$?
 set -e
 echo "✔ DB tests finished with rc=$db_rc"
@@ -1358,7 +1424,7 @@ if [[ "$db_rc" != "0" ]]; then rc="$db_rc"; fi
 
 echo "▶ Running UI tests (Formy)..."
 set +e
-/app/tools/run_formy.sh
+run_with_timeout "UI tests (Formy)" "25m" /app/tools/run_formy.sh
 ui_rc=$?
 set -e
 echo "✔ UI tests finished with rc=$ui_rc"
@@ -1366,44 +1432,46 @@ if [[ "$ui_rc" != "0" && "$rc" == "0" ]]; then rc="$ui_rc"; fi
 
 echo "▶ Running load tests (Gatling)..."
 set +e
-/app/tools/run_gatling.sh
+run_with_timeout "Load tests (Gatling)" "25m" /app/tools/run_gatling.sh
 gat_rc=$?
 set -e
 echo "✔ Gatling finished with rc=$gat_rc"
 if [[ "$gat_rc" != "0" && "$rc" == "0" ]]; then rc="$gat_rc"; fi
 
-# ---- collect reports into $REPORTS_DIR ----
+# ---- collect reports into RUN_DIR ----
+
 # Formy
-copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${REPORTS_DIR}/formy/cucumber.json"
-copy_if_exists "/app/formyProject/target/cucumber.html" "${REPORTS_DIR}/formy/cucumber.html"
-copy_if_exists "/app/formyProject/target/cucumber-html-report" "${REPORTS_DIR}/formy/cucumber-html-report"
-copy_if_exists "/app/formyProject/target/surefire-reports" "${REPORTS_DIR}/formy/surefire-reports"
-copy_if_exists "/app/formyProject/target/TEST-*.xml" "${REPORTS_DIR}/formy/" || true
+copy_if_exists "/app/formyProject/target/cucumber/cucumber.json" "${RUN_DIR}/formy/cucumber.json"
+copy_if_exists "/app/formyProject/target/cucumber.html" "${RUN_DIR}/formy/cucumber.html"
+copy_if_exists "/app/formyProject/target/cucumber-html-report" "${RUN_DIR}/formy/cucumber-html-report"
+copy_if_exists "/app/formyProject/target/surefire-reports" "${RUN_DIR}/formy/surefire-reports"
+copy_if_exists "/app/formyProject/target/TEST-*.xml" "${RUN_DIR}/formy/" || true
 
 # DatabaseUsage
-copy_if_exists "/app/databaseUsage/target/cucumber/cucumber.json" "${REPORTS_DIR}/databaseUsage/cucumber.json"
-copy_if_exists "/app/databaseUsage/target/cucumber.html" "${REPORTS_DIR}/databaseUsage/cucumber.html"
-copy_if_exists "/app/databaseUsage/target/cucumber-html-report" "${REPORTS_DIR}/databaseUsage/cucumber-html-report"
-copy_if_exists "/app/databaseUsage/target/surefire-reports" "${REPORTS_DIR}/databaseUsage/surefire-reports"
-copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${REPORTS_DIR}/databaseUsage/" || true
+copy_if_exists "/app/databaseUsage/target/cucumber/cucumber.json" "${RUN_DIR}/databaseUsage/cucumber.json"
+copy_if_exists "/app/databaseUsage/target/cucumber.html" "${RUN_DIR}/databaseUsage/cucumber.html"
+copy_if_exists "/app/databaseUsage/target/cucumber-html-report" "${RUN_DIR}/databaseUsage/cucumber-html-report"
+copy_if_exists "/app/databaseUsage/target/surefire-reports" "${RUN_DIR}/databaseUsage/surefire-reports"
+copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${RUN_DIR}/databaseUsage/" || true
 
 # Gatling
-# Common: target/gatling/latest (you also have target/gatling/* + lastRun.txt)
-copy_if_exists "/app/restfulBookerLoad/target/gatling" "${REPORTS_DIR}/gatling"
-# Ensure "latest" exists (Gatling usually maintains it)
-if [[ -d "${REPORTS_DIR}/gatling" && ! -d "${REPORTS_DIR}/gatling/latest" ]]; then
-  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+copy_if_exists "/app/restfulBookerLoad/target/gatling" "${RUN_DIR}/gatling"
+
+# Ensure RUN_DIR/gatling/latest -> newest simulation dir under RUN_DIR/gatling/
+if [[ -d "${RUN_DIR}/gatling" ]]; then
+  rm -f "${RUN_DIR}/gatling/latest" || true
+  latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
-    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest" 2>/dev/null || true
+    ln -s "$(basename "$latest_dir")" "${RUN_DIR}/gatling/latest"
   fi
 fi
 
-# Nested (if you generate it somewhere)
-copy_if_exists "/app/reports/nested" "${REPORTS_DIR}/nested" || true
+# Nested (optional)
+copy_if_exists "/app/reports/nested" "${RUN_DIR}/nested" || true
 
-# ---- dashboard ----
-echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
-cat > "${REPORTS_DIR}/index.html" <<'HTML'
+# ---- dashboard (per-run) ----
+echo "▶ Generating QA Dashboard (${RUN_DIR}/index.html)..."
+cat > "${RUN_DIR}/index.html" <<'HTML'
 <!doctype html>
 <html lang="en">
 <head>
@@ -1423,10 +1491,10 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
   <div class="card">
     <h2>UI tests (Formy)</h2>
     <ul>
-      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
+      <li>HTML: <a href="formy/cucumber.html">open</a></li>
+      <li>HTML (Cucumber Report): <a href="formy/cucumber-html-report/index.html">open</a></li>
       <li>JSON: <code>formy/cucumber.json</code></li>
-      <li>JUnit XML: <code>formy/TEST-formy.xml</code></li>
-      <li>Allure Results: <code>allure-results/*</code></li>
+      <li>JUnit XML: <code>formy/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -1434,9 +1502,9 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <h2>DB tests</h2>
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
+      <li>HTML (Cucumber Report): <a href="databaseUsage/cucumber-html-report/index.html">open</a></li>
       <li>JSON: <code>databaseUsage/cucumber.json</code></li>
-      <li>JUnit XML: <code>databaseUsage/TEST-databaseUsage.xml</code></li>
-      <li>Allure Results: <code>allure-results/*</code></li>
+      <li>JUnit XML: <code>databaseUsage/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -1446,28 +1514,56 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
       <li>HTML: <a href="gatling/latest/index.html">open</a></li>
     </ul>
   </div>
+
+  <div class="card">
+    <h2>Allure</h2>
+    <ul>
+      <li>Allure Results: <code>allure-results/</code></li>
+      <li>Open Allure tab in Jenkins (left menu)</li>
+    </ul>
+  </div>
 </body>
 </html>
 HTML
-echo "✔ ${REPORTS_DIR}/index.html generated"
+echo "✔ ${RUN_DIR}/index.html generated"
 
-echo "▶ Reports directory listing:"
-ls -la "${REPORTS_DIR}" || true
-
-# ---- contract: at least some reports should exist ----
-if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
-   && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
-   && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
+# ---- contract checks (before moving pointers) ----
+if [[ ! -f "${RUN_DIR}/formy/cucumber.json" \
+   && ! -f "${RUN_DIR}/databaseUsage/cucumber.json" \
+   && ! -f "${RUN_DIR}/gatling/latest/index.html" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi
 
-# ✅ contract: allure-results must be non-empty (otherwise Jenkins Allure is broken)
-if [[ ! -d "${REPORTS_DIR}/allure-results" ]] || [[ -z "$(ls -A "${REPORTS_DIR}/allure-results" 2>/dev/null)" ]]; then
-  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build as pipeline broken"
+if ! find "${RUN_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure results are missing/empty (${RUN_DIR}/allure-results) — failing build as pipeline broken"
   exit 12
 fi
 
+# ---- update pointers (single source of truth, atomic) ----
+# IMPORTANT: link to RUN_ID path, not to an absolute dir, to avoid "symlink-to-symlink" chains.
+atomic_write_file "${REPORTS_DIR}/LATEST" "${RUN_ID}"
+
+atomic_symlink "runs/${RUN_ID}" "${REPORTS_DIR}/current"
+
+# Current-view symlinks (always point to "current/...", never to absolute RUN_DIR)
+atomic_symlink "current/index.html" "${REPORTS_DIR}/index.html"
+atomic_symlink "current/formy" "${REPORTS_DIR}/formy"
+atomic_symlink "current/databaseUsage" "${REPORTS_DIR}/databaseUsage"
+atomic_symlink "current/gatling" "${REPORTS_DIR}/gatling"
+atomic_symlink "current/allure-results" "${REPORTS_DIR}/allure-results"
+
+echo "🧷 Updated pointers:"
+echo " - LATEST=${REPORTS_DIR}/LATEST -> ${RUN_ID}"
+echo " - current=${REPORTS_DIR}/current -> runs/${RUN_ID}"
+
+echo "▶ RUN_DIR listing:"
+ls -la "${RUN_DIR}" || true
+
+echo "▶ Allure results listing (first 200 files):"
+find "${RUN_DIR}/allure-results" -type f 2>/dev/null | head -n 200 || true
+
+# If any suite failed — fail build (reports already collected)
 if [[ "$rc" != "0" ]]; then
   echo "❌ QA suites failed (rc=$rc) — failing build"
   exit 11
@@ -1910,8 +2006,8 @@ object Engine extends App {
 //restfulBookerLoad/src/test/scala/GETBookingFixedDurationLoadCheck.scala//
 package simulations
 
-import io.gatling.core.scenario.Simulation
 import io.gatling.core.Predef._
+import io.gatling.core.scenario.Simulation
 import io.gatling.http.Predef._
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -1930,18 +2026,20 @@ class GETBookingFixedDurationLoadCheck extends Simulation {
         .check(status.in(200 to 304))
     )
 
+  //  Controlled duration + pauses to avoid excessive load/logs/results growth
   val scn = scenario("get booking requests fixed duration load")
-    .forever {
+    .during(1.minute) {
       exec(getBookingRequest())
+        .pause(200.millis) // tune 100-500ms depending on target load
     }
 
+  //  Stable load profile (instead of forever + burst ramp)
   setUp(
     scn.inject(
       nothingFor(5.seconds),
-      atOnceUsers(10),
-      rampUsers(50) during (30.seconds)
+      constantUsersPerSec(20) during (1.minute) // tune to desired throughput
     ).protocols(httpConf)
-  ).maxDuration(1.minute)
+  )
 }
 //restfulBookerLoad/src/test/scala/POSTBooking.scala//
 import io.gatling.core.Predef._
@@ -2547,7 +2645,7 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
-      - name: Sync reports to VPS (versioned + publish latest)
+      - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -2561,6 +2659,7 @@ jobs:
             exit 1
           fi
 
+          # Use a stable ID (UTC). Keep same format used by cleanup_runs.sh (folder name).
           RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           echo "▶ RUN_ID=$RUN_ID"
@@ -2568,39 +2667,81 @@ jobs:
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
 
+          # Ensure runs/<RUN_ID> exists on VPS
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # Upload everything (includes allure-results if present)
+          # Upload run artifacts into versioned folder
           scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
             reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
 
-          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
-            "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
-
-          # ✅ Publish latest run to BASE root (NO symlinks; python http.server friendly)
+          # Atomically update pointers on VPS:
+          # - LATEST file (atomic write)
+          # - current symlink -> runs/<RUN_ID>
+          # - root symlinks -> current/*
+          # No copies, no duplicates.
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
+
             BASE=/home/pet_projects/qa_automation/reports
-            RUN_ID=\$(cat \"\$BASE/LATEST\")
+            RUN_ID='$RUN_ID'
+
+            # ---- atomic helpers ----
+            atomic_write() {
+              local path=\"\$1\"
+              local content=\"\$2\"
+              local tmp
+              tmp=\$(mktemp \"\${path}.tmp.XXXXXX\")
+              printf '%s' \"\$content\" > \"\$tmp\"
+              mv -f \"\$tmp\" \"\$path\"
+            }
+
+            atomic_link() {
+              local target=\"\$1\"
+              local linkpath=\"\$2\"
+              ln -sfn \"\$target\" \"\$linkpath\"
+            }
+
             SRC=\"\$BASE/runs/\$RUN_ID\"
+            if [ ! -d \"\$SRC\" ]; then
+              echo \"❌ Missing uploaded run folder: \$SRC\"
+              exit 2
+            fi
 
-            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
-            rm -f \"\$BASE/index.html\" || true
+            # ---- contract sanity (light) ----
+            if [ ! -d \"\$SRC/formy\" ] || [ ! -d \"\$SRC/databaseUsage\" ] || [ ! -d \"\$SRC/gatling\" ]; then
+              echo \"❌ Contract failed: missing required dirs under \$SRC\"
+              exit 3
+            fi
 
-            cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
-            cp -a \"\$SRC/formy\" \"\$BASE/formy\"
-            cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
-            cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
-            [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
-            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
+            # ---- pointers (single source of truth) ----
+            atomic_write \"\$BASE/LATEST\" \"\$RUN_ID\"
+            atomic_link \"runs/\$RUN_ID\" \"\$BASE/current\"
 
-            # Fix links to be BASE-root friendly
-            sed -i 's#reports/##g' \"\$BASE/index.html\" || true
-            sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
+            # Root view for dashboard server (python http.server follows symlinks)
+            atomic_link \"current/index.html\"        \"\$BASE/index.html\"
+            atomic_link \"current/formy\"             \"\$BASE/formy\"
+            atomic_link \"current/databaseUsage\"     \"\$BASE/databaseUsage\"
+            atomic_link \"current/gatling\"           \"\$BASE/gatling\"
+            atomic_link \"current/allure-results\"    \"\$BASE/allure-results\"
+            atomic_link \"current/nested\"            \"\$BASE/nested\"
 
-            chmod -R a+rX \"\$BASE\" || true
-            echo \"✅ Published \$RUN_ID\"
+            # ---- permissions (best effort) ----
+            # Container on VPS serves reports as read-only, but we keep consistent ownership/ACL for future writes/cleanup.
+            CONTAINER_UID=1200
+            CONTAINER_GID=1201
+            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$BASE\" || true
+            find \"\$BASE\" -type d -exec chmod 2775 {} \; || true
+            find \"\$BASE\" -type f -exec chmod 664  {} \; || true
+
+            if command -v setfacl >/dev/null 2>&1; then
+              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+            fi
+
+            echo \"✅ Published pointers for \$RUN_ID\"
+            echo \" - \$BASE/LATEST -> \$RUN_ID\"
+            echo \" - \$BASE/current -> runs/\$RUN_ID\"
           "
 
       # ✅ Result: workflow does NOT fail when tests fail.
@@ -2675,14 +2816,12 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 //Jenkinsfile//
-// /Users/ilia/IdeaProjects/pet_projects/qa_automation/Jenkinsfile
+// Jenkinsfile
 pipeline {
     agent any
 
-    // ✅ Schedule-as-code: run примерно раз в 10 минут (hash-based, чтобы не долбить ровно в минуту)
-    triggers {
-        cron('H/10 * * * *')
-    }
+    // Run примерно раз в 10 минут (hash-based)
+    triggers { cron('H/10 * * * *') }
 
     options {
         timestamps()
@@ -2690,9 +2829,12 @@ pipeline {
 
         disableConcurrentBuilds()
         timeout(time: 30, unit: 'MINUTES')
+
+        // Храним ТОЛЬКО последние 10 билдов/артефактов.
+        // По времени НЕ ограничиваем (daysToKeepStr НЕ задаём).
         buildDiscarder(logRotator(
-            numToKeepStr: '60',
-            artifactNumToKeepStr: '60'
+            numToKeepStr: '10',
+            artifactNumToKeepStr: '10'
         ))
     }
 
@@ -2749,9 +2891,7 @@ pipeline {
         }
 
         stage('Contract check (reports structure)') {
-            when {
-                expression { currentBuild.result != 'NOT_BUILT' }
-            }
+            when { expression { currentBuild.result != 'NOT_BUILT' } }
             steps {
                 sh '''
                   set -eux
@@ -2772,42 +2912,40 @@ pipeline {
                     fi
                   done
 
-                  # Gatling contract: gatling/latest
+                  # Gatling contract: gatling/latest must exist
                   if [ ! -d "$SRC/gatling/latest" ]; then
                     echo "❌ Missing required directory: $SRC/gatling/latest"
                     exit 4
                   fi
 
-                  # Allure contract (soft for now: warn until CI starts exporting it)
+                  # Allure contract (hard)
                   if [ ! -d "$SRC/allure-results" ]; then
-                    echo "⚠️ Allure results folder is missing: $SRC/allure-results"
-                    echo "   Jenkins Allure tab will be empty until CI uploads allure-results/**"
-                  else
-                    if ! find "$SRC/allure-results" -type f -print -quit | grep -q .; then
-                      echo "⚠️ Allure results folder exists but is empty: $SRC/allure-results"
-                      echo "   Jenkins Allure tab will be empty until CI generates results."
-                    fi
+                    echo "❌ Allure results folder is missing: $SRC/allure-results"
+                    exit 5
                   fi
 
-                  # JUnit contract: at least one XML should exist (any of the supported patterns)
+                  if ! find "$SRC/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+                    echo "❌ Allure results folder exists but is empty: $SRC/allure-results"
+                    exit 6
+                  fi
+
+                  # JUnit contract: at least one XML should exist (soft)
                   if ! find "$SRC" -type f \\( \
                         -path "*/surefire-reports/*.xml" -o \
                         -path "*/surefire/*.xml" -o \
                         -name "TEST-*.xml" \
                       \\) -print -quit | grep -q .; then
                     echo "⚠️ No JUnit XML found under $SRC (surefire-reports/*.xml or surefire/*.xml or TEST-*.xml)."
-                    echo "   Jenkins trend/passed-failed-skipped will be empty until you export JUnit XML into reports."
+                    echo "   Jenkins JUnit trend will be empty until you export JUnit XML into reports."
                   fi
 
-                  echo "✅ Contract check passed (or warnings only)."
+                  echo "✅ Contract check passed."
                 '''
             }
         }
 
         stage('Import reports from VPS into workspace') {
-            when {
-                expression { currentBuild.result != 'NOT_BUILT' }
-            }
+            when { expression { currentBuild.result != 'NOT_BUILT' } }
             steps {
                 sh '''
                   set -eux
@@ -2820,9 +2958,7 @@ pipeline {
         }
 
         stage('Mark RUN_ID as processed') {
-            when {
-                expression { currentBuild.result != 'NOT_BUILT' }
-            }
+            when { expression { currentBuild.result != 'NOT_BUILT' } }
             steps {
                 sh '''
                   set -euo pipefail
@@ -2835,9 +2971,7 @@ pipeline {
         }
 
         stage('Debug: show imported structure') {
-            when {
-                expression { currentBuild.result != 'NOT_BUILT' }
-            }
+            when { expression { currentBuild.result != 'NOT_BUILT' } }
             steps {
                 sh '''
                   set -eux
@@ -2851,20 +2985,23 @@ pipeline {
     post {
         always {
             script {
-                // If we skipped early, reports/ likely does not exist.
                 def hasReports = sh(script: 'test -d reports && echo yes || echo no', returnStdout: true).trim() == 'yes'
                 if (!hasReports) {
                     echo "ℹ️ No reports workspace (likely skipped). Post actions are skipped."
                     return
                 }
 
-                // ✅ JUnit: источник passed/failed/skipped + trend (JUnit plugin)
+                // ✅ JUnit: passed/failed/skipped + trend
                 junit testResults: 'reports/**/surefire-reports/*.xml, reports/**/surefire/*.xml, reports/**/TEST-*.xml',
                       allowEmptyResults: true,
                       keepLongStdio: true
 
-                // ✅ Allure: вкладка Allure + trend (если есть результаты)
-                def hasAllure = sh(script: 'test -d reports/allure-results && find reports/allure-results -type f -print -quit >/dev/null 2>&1 && echo yes || echo no', returnStdout: true).trim() == 'yes'
+                // ✅ Allure tab + trend
+                def hasAllure = sh(
+                    script: 'test -d reports/allure-results && find reports/allure-results -type f -print -quit >/dev/null 2>&1 && echo yes || echo no',
+                    returnStdout: true
+                ).trim() == 'yes'
+
                 if (hasAllure) {
                     allure(
                         includeProperties: false,
@@ -2875,10 +3012,10 @@ pipeline {
                     echo "ℹ️ No allure-results in this build (reports/allure-results is missing or empty)."
                 }
 
-                // Сохраняем артефакты билда — это и есть «история» в Jenkins
+                // ✅ Артефакты = история по билдам (и она ограничена buildDiscarder'ом)
                 archiveArtifacts artifacts: 'reports/**', fingerprint: true, allowEmptyArchive: true
 
-                // Главный index (если он реально приезжает в reports/)
+                // ✅ HTML Publisher
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2888,7 +3025,6 @@ pipeline {
                     reportName:            'QA Dashboard'
                 ])
 
-                // Formy: cucumber.html
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2898,7 +3034,6 @@ pipeline {
                     reportName:            'UI tests (Formy)'
                 ])
 
-                // Formy: cucumber-html-report/index.html (если есть)
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2908,7 +3043,6 @@ pipeline {
                     reportName:            'UI tests (Formy) — Cucumber HTML Report'
                 ])
 
-                // Database usage: cucumber.html
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2918,7 +3052,6 @@ pipeline {
                     reportName:            'DB tests'
                 ])
 
-                // Database usage: cucumber-html-report/index.html (если есть)
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2928,7 +3061,6 @@ pipeline {
                     reportName:            'DB tests (Cucumber HTML Report)'
                 ])
 
-                // Gatling: reports/gatling/latest/index.html
                 publishHTML(target: [
                     allowMissing:          true,
                     alwaysLinkToLastBuild: true,
@@ -2979,7 +3111,7 @@ pipeline {
     </properties>
 
     <dependencies>
-        <!-- Cucumber (без scope=test, т.к. код лежит в src/main/java) -->
+        <!-- Cucumber -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
@@ -2998,14 +3130,14 @@ pipeline {
             <version>${allure.version}</version>
         </dependency>
 
-        <!-- JUnit 4 (runner на JUnit4) -->
+        <!-- JUnit 4 (runner) -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
         </dependency>
 
-        <!-- TestNG -->
+        <!-- TestNG (оставлено как у тебя) -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
@@ -3033,7 +3165,7 @@ pipeline {
             <version>${galen.version}</version>
         </dependency>
 
-        <!-- Apache HttpClient 4.x (оставляю 4.x чтобы не ломать API на 5.x) -->
+        <!-- Apache HttpClient 4.x -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -3053,7 +3185,7 @@ pipeline {
                 </configuration>
             </plugin>
 
-            <!-- Surefire: фиксируем JUnit provider, иначе может выбрать TestNGProvider -->
+            <!-- Surefire: форсим JUnit provider -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -11675,13 +11807,15 @@ import org.junit.runner.RunWith;
         glue = "Steps",
         plugin = {
                 "pretty",
+
+                // ✅ отчёты
                 "json:/reports/formy/cucumber.json",
                 "html:/reports/formy/cucumber.html",
 
                 // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/formy/TEST-formy.xml",
 
-                // ✅ Allure results
+                // ✅ Allure (Cucumber 7 adapter)
                 "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true
@@ -16647,15 +16781,19 @@ USER root
 ENTRYPOINT ["/usr/local/bin/jenkins-with-docker.sh"]
 //entrypoint.sh//
 #!/usr/bin/env bash
+# entrypoint.sh
 set -euo pipefail
 
 REPORTS_DIR="${REPORTS_DIR:-/reports}"
 
-mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested"
+mkdir -p "${REPORTS_DIR}/formy" "${REPORTS_DIR}/databaseUsage" "${REPORTS_DIR}/gatling" "${REPORTS_DIR}/nested" "${REPORTS_DIR}/allure-results"
 
 echo "▶ QA container runner started"
 echo "▶ Reports dir: ${REPORTS_DIR}"
 echo "▶ JAVA_OPTS: ${JAVA_OPTS:-<empty>}"
+
+# Make sure all suites write Allure into the same base dir
+export ALLURE_RESULTS_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_DIR}/allure-results}"
 
 rc_formy=0
 rc_db=0
@@ -16703,7 +16841,16 @@ fi
 
 echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}"
 
-echo "▶ Generating QA Dashboard (reports/index.html)..."
+# Ensure gatling/latest exists if Gatling produced target reports under /reports/gatling/<timestamp>/
+if [[ -d "${REPORTS_DIR}/gatling" ]]; then
+  rm -f "${REPORTS_DIR}/gatling/latest" || true
+  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+  if [[ -n "${latest_dir:-}" ]]; then
+    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest" 2>/dev/null || true
+  fi
+fi
+
+echo "▶ Generating QA Dashboard (${REPORTS_DIR}/index.html)..."
 cat > "${REPORTS_DIR}/index.html" <<'HTML'
 <!doctype html>
 <html lang="en">
@@ -16724,8 +16871,10 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
   <div class="card">
     <h2>UI tests (Formy)</h2>
     <ul>
-      <li>HTML: <a href="formy/cucumber-html-report/index.html">open</a></li>
-      <li>JSON: <code>reports/formy/cucumber.json</code></li>
+      <li>HTML: <a href="formy/cucumber.html">open</a></li>
+      <li>HTML (Cucumber Report): <a href="formy/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>formy/cucumber.json</code></li>
+      <li>JUnit XML: <code>formy/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -16733,7 +16882,9 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
     <h2>DB tests</h2>
     <ul>
       <li>HTML: <a href="databaseUsage/cucumber.html">open</a></li>
-      <li>JSON: <code>reports/databaseUsage/cucumber.json</code></li>
+      <li>HTML (Cucumber Report): <a href="databaseUsage/cucumber-html-report/index.html">open</a></li>
+      <li>JSON: <code>databaseUsage/cucumber.json</code></li>
+      <li>JUnit XML: <code>databaseUsage/surefire-reports/</code></li>
     </ul>
   </div>
 
@@ -16743,13 +16894,21 @@ cat > "${REPORTS_DIR}/index.html" <<'HTML'
       <li>HTML: <a href="gatling/latest/index.html">open</a></li>
     </ul>
   </div>
+
+  <div class="card">
+    <h2>Allure</h2>
+    <ul>
+      <li>Allure Results: <code>allure-results/</code></li>
+      <li>Open Allure tab in Jenkins (left menu)</li>
+    </ul>
+  </div>
 </body>
 </html>
 HTML
 echo "✔ ${REPORTS_DIR}/index.html generated"
 ls -la "${REPORTS_DIR}" || true
 
-# если отчётов вообще нет — фейлим
+# If no reports at all — fail
 if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
    && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
@@ -16757,7 +16916,13 @@ if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
   exit 10
 fi
 
-# если хотя бы одна suite упала — фейлим, но отчёты уже есть
+# Allure must be non-empty (hard contract)
+if ! find "${REPORTS_DIR}/allure-results" -type f -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure results are missing/empty (${REPORTS_DIR}/allure-results) — failing build"
+  exit 12
+fi
+
+# If any suite failed — fail, but reports remain
 if [[ "${rc_formy}" -ne 0 || "${rc_db}" -ne 0 || "${rc_gatling}" -ne 0 ]]; then
   echo "❌ One or more suites failed — failing build"
   exit 11
