@@ -24,6 +24,12 @@ ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/formy"
 
 mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
+# --- очистка "мусора" от прошлых прогонов ---
+rm -f "${REPORT_DIR}/cucumber.json" "${REPORT_DIR}/cucumber.html" 2>/dev/null || true
+rm -f "${REPORT_DIR}/TEST-formy.xml" 2>/dev/null || true
+rm -rf "${ROOT_TARGET}/cucumber"* 2>/dev/null || true
+rm -rf "${ALLURE_RESULTS_DIR:?}/"* 2>/dev/null || true
+
 # ---- Xvfb ----
 export DISPLAY=:99
 Xvfb :99 -screen 0 1280x720x24 >/dev/null 2>&1 &

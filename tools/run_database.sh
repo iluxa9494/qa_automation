@@ -24,6 +24,12 @@ read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
 mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
+# --- очистка "мусора" от прошлых прогонов ---
+rm -f "${REPORT_DIR}/cucumber.json" "${REPORT_DIR}/cucumber.html" 2>/dev/null || true
+rm -f "${REPORT_DIR}/TEST-databaseUsage.xml" 2>/dev/null || true
+rm -rf "${ROOT_TARGET}/cucumber"* 2>/dev/null || true
+rm -rf "${ALLURE_RESULTS_DIR:?}/"* 2>/dev/null || true
+
 # Рабочая директория — root проекта
 cd "${BASE_DIR}"
 

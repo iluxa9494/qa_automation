@@ -9,10 +9,6 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
 
-                // ✅ отчёты
-                "json:/reports/databaseUsage/cucumber.json",
-                "html:/reports/databaseUsage/cucumber.html",
-
                 // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
 

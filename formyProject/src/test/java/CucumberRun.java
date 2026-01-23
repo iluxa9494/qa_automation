@@ -9,10 +9,6 @@ import org.junit.runner.RunWith;
         plugin = {
                 "pretty",
 
-                // ✅ отчёты
-                "json:/reports/formy/cucumber.json",
-                "html:/reports/formy/cucumber.html",
-
                 // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/formy/TEST-formy.xml",
 
