@@ -24,10 +24,8 @@ public class DatepickerPage {
     public static WebElement inputFieldDatepicker;
     @FindBy(xpath = "//h1[text()='Datepicker']")
     public static WebElement titleDatepicker;
-    //calendar
     @FindBy(xpath = "//div[@class='datepicker-days']")
     public static WebElement calendarBody;
-    //header elements
     @FindBy(xpath = "//a[@id='logo']")
     public static WebElement formyPage;
     @FindBy(xpath = "//a[text()='Form']")
@@ -37,24 +35,19 @@ public class DatepickerPage {
     LocalDate currentDate = LocalDate.now();
     @FindBy(xpath = "//td[@class='today day']")
     public static WebElement todayDay;
-    //months
     String currentMonth = String.valueOf(currentDate.getMonth());
     LocalDate prevMonth = currentDate.minusMonths(1);
     String previousMonth = String.valueOf(prevMonth.getMonth());
     LocalDate forwardMonth = currentDate.plusMonths(1);
     String nextMonth = String.valueOf(forwardMonth.getMonth());
-    //years
     LocalDate prevYear = currentDate.minusYears(1);
     String previousYear = String.valueOf(prevYear.getYear());
     LocalDate forwardYear = currentDate.plusYears(1);
     String nextYear = String.valueOf(forwardYear.getYear());
-    //decades
     String previousDecade = "2010-2019";
     String nextDecade = "2030-2039";
-    //centuries
     String previousCentury = "1900-1990";
     String nextCentury = "2100-2190";
-    //millenniums
     String previousMillennium = "1000-1900";
     String nextMillennium = "3000-3900";
 
@@ -400,7 +393,7 @@ public class DatepickerPage {
         }
     }
 
-    public void isPage(String arg1) { //byTitle
+    public void isPage(String arg1) {
         switch (arg1) {
             case "Buttons":
                 WebElement buttonPrimary = driver.findElement(By.xpath("//button[@type='button' and text()='Primary']"));

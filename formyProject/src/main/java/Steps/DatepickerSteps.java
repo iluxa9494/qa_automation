@@ -12,7 +12,7 @@ public class DatepickerSteps extends Drive {
 
     @Then("Go to {string} page")
     public void goToPage(String arg1) {
-        datepickerPage.goPage(arg1);//for list on welcome page only
+        datepickerPage.goPage(arg1);
         datepickerPage.isPage(arg1);
     }
 
@@ -56,7 +56,6 @@ public class DatepickerSteps extends Drive {
         datepickerPage.clickOnTitleCheck(arg1);
     }
 
-    //header
     @Then("Click on {string} and check inside a dropdown list with:")
     public void componentsCheck1(String arg1, DataTable table) {
         datepickerPage.headerComponentsCheck(arg1, table);

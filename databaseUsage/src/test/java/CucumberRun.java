@@ -8,11 +8,7 @@ import org.junit.runner.RunWith;
         glue = "Steps",
         plugin = {
                 "pretty",
-
-                // ✅ Jenkins trends (JUnit XML)
                 "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
-
-                // ✅ Allure (Cucumber 6 adapter)
                 "io.qameta.allure.cucumber6jvm.AllureCucumber6Jvm"
         },
         monochrome = true

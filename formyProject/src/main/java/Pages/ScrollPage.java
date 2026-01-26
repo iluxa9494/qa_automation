@@ -141,7 +141,7 @@ public class ScrollPage {
             case "top":
                 positionCheck(0L, arg1);
                 break;
-            case "after refresh bottom": // offset by 3 px up has been accepted as norm (a feature)
+            case "after refresh bottom":
                 positionCheck(497L, arg1);
                 break;
         }

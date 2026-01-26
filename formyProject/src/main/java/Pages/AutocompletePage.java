@@ -66,11 +66,6 @@ public class AutocompletePage {
         return v == null ? "" : v;
     }
 
-    // =========================
-    // ✅ Backward-compatible API
-    // (чтобы не падали другие Page/Steps)
-    // =========================
-
     public String getInputFieldValue(WebElement el) {
         return valueOf(el);
     }
@@ -84,8 +79,6 @@ public class AutocompletePage {
     public void pasteValueToInputField(WebElement el) {
         waitVisible(el);
         el.click();
-        // В CI/Headless clipboard может вести себя нестабильно,
-        // но оставляем как было по смыслу.
         el.sendKeys(Keys.chord(Keys.CONTROL, "v"));
     }
 
@@ -96,14 +89,12 @@ public class AutocompletePage {
         waitVisible(field);
         field.click();
 
-        // Пытаемся "как пользователь"
         try {
             field.sendKeys(Keys.chord(Keys.CONTROL, "a"));
             field.sendKeys(Keys.chord(Keys.CONTROL, "c"));
         } catch (Exception ignored) {
         }
 
-        // Возвращаем то, что реально в value
         return valueOf(field);
     }
 
@@ -119,10 +110,6 @@ public class AutocompletePage {
             default: return null;
         }
     }
-
-    // =========================
-    // Остальная логика
-    // =========================
 
     public void makeScreenshot() {
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());

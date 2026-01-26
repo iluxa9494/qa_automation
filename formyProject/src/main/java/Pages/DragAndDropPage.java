@@ -75,7 +75,7 @@ public class DragAndDropPage {
     }
 
     public void isLogoPosition(int i) {
-        switch (i) { // i = 1 if needs logo has been on initial position and i = 2 if needs logo has not been on initial position
+        switch (i) {
             case 1:
                 checkResult(isDisplayedCheck(initialLogoPosition));
                 break;

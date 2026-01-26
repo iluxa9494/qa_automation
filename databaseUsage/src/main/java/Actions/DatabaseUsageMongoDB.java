@@ -22,8 +22,6 @@ public class DatabaseUsageMongoDB {
     }
 
     public void connectToMongoDB(String dbName) {
-        // ✅ контейнер: mongodb://mongo:27017 (из env MONGO_URI)
-        // ✅ локально:   mongodb://localhost:27017
         String mongoUri = envOrDefault("MONGO_URI", "mongodb://localhost:27017");
         client = MongoClients.create(mongoUri);
         database = client.getDatabase(dbName);
@@ -65,7 +63,6 @@ public class DatabaseUsageMongoDB {
 
         collection = database.getCollection("city");
 
-        // ✅ раньше было жестко "ID=1" — теперь читаем по id из feature
         Document doc = collection.find(Filters.eq(elements.get(0), idCheck)).first();
 
         check(doc != null

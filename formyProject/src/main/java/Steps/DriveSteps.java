@@ -9,11 +9,11 @@ public class DriveSteps extends Drive {
 
     @Then("Open browser and go to Formy site")
     public void chooseTheDriver() throws IOException {
-        chooseDriver(); // метод из Drive
+        chooseDriver();
     }
 
     @Then("Close browser")
     public void closeBrowser() {
-        stopTest(); // единое имя (см. Drive.java ниже)
+        stopTest();
     }
 }

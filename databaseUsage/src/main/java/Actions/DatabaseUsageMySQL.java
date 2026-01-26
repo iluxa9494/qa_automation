@@ -15,8 +15,6 @@ public class DatabaseUsageMySQL {
     }
 
     public void connectToMySQL() throws ClassNotFoundException, SQLException {
-        // ✅ для MySQL 8 / Connector/J 8:
-        // com.mysql.jdbc.Driver устарел -> com.mysql.cj.jdbc.Driver
         Class.forName("com.mysql.cj.jdbc.Driver");
         System.out.println("Driver loaded");
 
@@ -24,7 +22,6 @@ public class DatabaseUsageMySQL {
         String user = envOrDefault("MYSQL_USER", "test");
         String pass = envOrDefault("MYSQL_PASSWORD", "test");
 
-        // ✅ на всякий случай добавим параметры (не ломают, но помогают)
         if (!url.contains("?")) {
             url = url + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
         }
@@ -43,7 +40,6 @@ public class DatabaseUsageMySQL {
         int id = Integer.parseInt(e.get(1));
         int population = Integer.parseInt(e.get(9));
 
-        // ✅ безопаснее через PreparedStatement (и не зависит от кавычек)
         String sql = "INSERT INTO city (ID, Name, CountryCode, District, Population) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, id);
