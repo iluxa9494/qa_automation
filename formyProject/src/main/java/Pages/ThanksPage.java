@@ -13,18 +13,30 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class ThanksPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(xpath = "//div[@role='alert']")
-    public static WebElement successTitle;
+    private WebElement successTitle;
     @FindBy(xpath = "//h1[text()='Thanks for submitting your form']")
-    public static WebElement pageTitle;
+    private WebElement pageTitle;
 
     public ThanksPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);

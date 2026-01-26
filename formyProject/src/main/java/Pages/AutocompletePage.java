@@ -14,42 +14,45 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class AutocompletePage {
 
     @FindBy(id = "autocomplete")
-    public static WebElement inputFieldAddress;
+    private WebElement inputFieldAddress;
     @FindBy(id = "street_number")
-    public static WebElement inputFieldStreetAddress;
+    private WebElement inputFieldStreetAddress;
     @FindBy(id = "route")
-    public static WebElement inputFieldStreetAddress2;
+    private WebElement inputFieldStreetAddress2;
     @FindBy(id = "locality")
-    public static WebElement inputFieldCity;
+    private WebElement inputFieldCity;
     @FindBy(id = "administrative_area_level_1")
-    public static WebElement inputFieldState;
+    private WebElement inputFieldState;
     @FindBy(id = "postal_code")
-    public static WebElement inputFieldZipCode;
+    private WebElement inputFieldZipCode;
     @FindBy(id = "country")
-    public static WebElement inputFieldCountry;
+    private WebElement inputFieldCountry;
 
     @FindBy(xpath = "//h1[text()='Autocomplete']")
-    public static WebElement titleAutocomplete;
+    private WebElement titleAutocomplete;
 
     @FindBy(xpath = "//div[@class='pac-item'][1]")
-    public static WebElement dropdownList;
+    private WebElement dropdownList;
     @FindBy(xpath = "//div[@class='pac-item'][2]")
-    public static WebElement dropdownList2Element;
+    private WebElement dropdownList2Element;
     @FindBy(xpath = "//div[@class='pac-item'][3]")
-    public static WebElement dropdownList3Element;
+    private WebElement dropdownList3Element;
     @FindBy(xpath = "//div[@class='pac-item'][4]")
-    public static WebElement dropdownList4Element;
+    private WebElement dropdownList4Element;
     @FindBy(xpath = "//div[@class='pac-item'][5]")
-    public static WebElement dropdownList5Element;
+    private WebElement dropdownList5Element;
 
     private final WebDriver driver;
     private final WebDriverWait wait;
 
     public AutocompletePage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
     }
 
@@ -66,6 +69,11 @@ public class AutocompletePage {
         return v == null ? "" : v;
     }
 
+    // =========================
+    // ✅ Backward-compatible API
+    // (чтобы не падали другие Page/Steps)
+    // =========================
+
     public String getInputFieldValue(WebElement el) {
         return valueOf(el);
     }
@@ -79,6 +87,8 @@ public class AutocompletePage {
     public void pasteValueToInputField(WebElement el) {
         waitVisible(el);
         el.click();
+        // В CI/Headless clipboard может вести себя нестабильно,
+        // но оставляем как было по смыслу.
         el.sendKeys(Keys.chord(Keys.CONTROL, "v"));
     }
 
@@ -89,12 +99,14 @@ public class AutocompletePage {
         waitVisible(field);
         field.click();
 
+        // Пытаемся "как пользователь"
         try {
             field.sendKeys(Keys.chord(Keys.CONTROL, "a"));
             field.sendKeys(Keys.chord(Keys.CONTROL, "c"));
         } catch (Exception ignored) {
         }
 
+        // Возвращаем то, что реально в value
         return valueOf(field);
     }
 
@@ -111,7 +123,20 @@ public class AutocompletePage {
         }
     }
 
+    // =========================
+    // Остальная логика
+    // =========================
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
+    }
+
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);

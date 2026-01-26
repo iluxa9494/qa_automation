@@ -12,26 +12,37 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class ModalPage {
-    WebDriver driver;
-    DatepickerPage datepickerPage = PageFactory.initElements(driver, DatepickerPage.class);
+    private final WebDriver driver;
+    private final DatepickerPage datepickerPage;
     @FindBy(id = "modal-button")
-    public static WebElement modalButton;
+    private WebElement modalButton;
     @FindBy(id = "exampleModalLabel")
-    public static WebElement modalWindowFirstTitle;
+    private WebElement modalWindowFirstTitle;
     @FindBy(xpath = "//button[@class='close']")
-    public static WebElement closeRightTopButtonOfModalWindow;
+    private WebElement closeRightTopButtonOfModalWindow;
     @FindBy(id = "close-button")
-    public static WebElement closeButtonOfModalWindow;
+    private WebElement closeButtonOfModalWindow;
     @FindBy(id = "ok-button")
-    public static WebElement okButtonOfModalWindow;
+    private WebElement okButtonOfModalWindow;
     @FindBy(xpath = "//div[@class='modal fade show']")
-    public static WebElement modalWindow;
+    private WebElement modalWindow;
 
     public ModalPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+        this.datepickerPage = new DatepickerPage(driver);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);

@@ -9,26 +9,38 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class RadioButtonPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(id = "radio-button-1")
-    public static WebElement radioButton1;
+    private WebElement radioButton1;
     @FindBy(xpath = "//input[@value='option2']")
-    public static WebElement radioButton2;
+    private WebElement radioButton2;
     @FindBy(xpath = "//input[@value='option3']")
-    public static WebElement radioButton3;
+    private WebElement radioButton3;
     @FindBy(xpath = "//label[@for='radio-button-1']")
-    public static WebElement radioButton1Title;
+    private WebElement radioButton1Title;
     @FindBy(xpath = "//label[@for='radio-button-2']")
-    public static WebElement radioButton2Title;
+    private WebElement radioButton2Title;
     @FindBy(xpath = "//label[@for='radio-button-3']")
-    public static WebElement radioButton3Title;
+    private WebElement radioButton3Title;
 
     public RadioButtonPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -128,3 +140,4 @@ public class RadioButtonPage {
         radioButton1.sendKeys(Keys.ENTER);
     }
 }
+

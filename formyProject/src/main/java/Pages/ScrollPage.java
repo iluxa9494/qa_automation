@@ -13,18 +13,29 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class ScrollPage {
-    WebDriver driver;
-    AutocompletePage autocompletePage = PageFactory.initElements(driver, AutocompletePage.class);
+    private final WebDriver driver;
+    private final AutocompletePage autocompletePage;
     @FindBy(id = "name")
-    public static WebElement fullNameInput;
+    private WebElement fullNameInput;
     @FindBy(id = "date")
-    public static WebElement dateInput;
+    private WebElement dateInput;
 
     public ScrollPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+        this.autocompletePage = new AutocompletePage(driver);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -141,7 +152,7 @@ public class ScrollPage {
             case "top":
                 positionCheck(0L, arg1);
                 break;
-            case "after refresh bottom":
+            case "after refresh bottom": // offset by 3 px up has been accepted as norm (a feature)
                 positionCheck(497L, arg1);
                 break;
         }

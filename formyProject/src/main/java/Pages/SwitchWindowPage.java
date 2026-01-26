@@ -11,19 +11,30 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
-public class SwitchWindowPage {
+import org.openqa.selenium.support.PageFactory;
 
-    WebDriver driver;
+public class SwitchWindowPage {
+    private final WebDriver driver;
     @FindBy(id = "new-tab-button")
-    public static WebElement openNewTabButton;
+    private WebElement openNewTabButton;
     @FindBy(id = "alert-button")
-    public static WebElement openAlertButton;
+    private WebElement openAlertButton;
 
     public SwitchWindowPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -125,3 +136,4 @@ public class SwitchWindowPage {
         driver.switchTo().alert().dismiss();
     }
 }
+

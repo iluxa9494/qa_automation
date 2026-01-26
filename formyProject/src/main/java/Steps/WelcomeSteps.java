@@ -4,23 +4,27 @@ import Config.Drive;
 import Pages.WelcomePage;
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.en.Then;
-import org.openqa.selenium.support.PageFactory;
-
 public class WelcomeSteps extends Drive {
-    WelcomePage welcomePage = PageFactory.initElements(driver, WelcomePage.class);
+    private WelcomePage welcomePage;
 
+    private WelcomePage welcomePage() {
+        if (welcomePage == null) {
+            welcomePage = new WelcomePage(driver);
+        }
+        return welcomePage;
+    }
     @Then("Check {string} has a {string} text")
     public void firstSecondTitleCheck(String arg1, String arg2) {
-        welcomePage.hasFirstSecondTitleCheck(arg1, arg2);
+        welcomePage().hasFirstSecondTitleCheck(arg1, arg2);
     }
 
     @Then("Check list of the all components has displayed and contained:")
     public void allElementsInListCheck(DataTable table) throws InterruptedException {
-        welcomePage.hasAllElementsInListCheck(table);
+        welcomePage().hasAllElementsInListCheck(table);
     }
 
     @Then("Check {string} element has been unselected, enabled")
     public void welcomeElementUnselectedEnabledCheck(String arg1) {
-        welcomePage.haswelcomeElementUnselectedEnabledCheck(arg1);
+        welcomePage().haswelcomeElementUnselectedEnabledCheck(arg1);
     }
 }

@@ -18,44 +18,63 @@ import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Properties;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class DatepickerPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(xpath = "//input[@id='datepicker']")
-    public static WebElement inputFieldDatepicker;
+    private WebElement inputFieldDatepicker;
     @FindBy(xpath = "//h1[text()='Datepicker']")
-    public static WebElement titleDatepicker;
+    private WebElement titleDatepicker;
+    //calendar
     @FindBy(xpath = "//div[@class='datepicker-days']")
-    public static WebElement calendarBody;
+    private WebElement calendarBody;
+    //header elements
     @FindBy(xpath = "//a[@id='logo']")
-    public static WebElement formyPage;
+    private WebElement formyPage;
     @FindBy(xpath = "//a[text()='Form']")
-    public static WebElement formPage;
+    private WebElement formPage;
     @FindBy(xpath = "//a[@id='navbarDropdownMenuLink']")
-    public static WebElement headerDropdownComponents;
+    private WebElement headerDropdownComponents;
     LocalDate currentDate = LocalDate.now();
     @FindBy(xpath = "//td[@class='today day']")
-    public static WebElement todayDay;
+    private WebElement todayDay;
+    //months
     String currentMonth = String.valueOf(currentDate.getMonth());
     LocalDate prevMonth = currentDate.minusMonths(1);
     String previousMonth = String.valueOf(prevMonth.getMonth());
     LocalDate forwardMonth = currentDate.plusMonths(1);
     String nextMonth = String.valueOf(forwardMonth.getMonth());
+    //years
     LocalDate prevYear = currentDate.minusYears(1);
     String previousYear = String.valueOf(prevYear.getYear());
     LocalDate forwardYear = currentDate.plusYears(1);
     String nextYear = String.valueOf(forwardYear.getYear());
+    //decades
     String previousDecade = "2010-2019";
     String nextDecade = "2030-2039";
+    //centuries
     String previousCentury = "1900-1990";
     String nextCentury = "2100-2190";
+    //millenniums
     String previousMillennium = "1000-1900";
     String nextMillennium = "3000-3900";
 
     public DatepickerPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -393,7 +412,7 @@ public class DatepickerPage {
         }
     }
 
-    public void isPage(String arg1) {
+    public void isPage(String arg1) { //byTitle
         switch (arg1) {
             case "Buttons":
                 WebElement buttonPrimary = driver.findElement(By.xpath("//button[@type='button' and text()='Primary']"));
@@ -457,3 +476,4 @@ public class DatepickerPage {
         }
     }
 }
+

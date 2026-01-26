@@ -12,21 +12,33 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class KeyPressPage {
-    WebDriver driver;
-    AutocompletePage autocompletePage = PageFactory.initElements(driver, AutocompletePage.class);
-    DatepickerPage datepickerPage = PageFactory.initElements(driver, DatepickerPage.class);
+    private final WebDriver driver;
+    private final AutocompletePage autocompletePage;
+    private final DatepickerPage datepickerPage;
     @FindBy(id = "name")
-    public static WebElement fullNameInput;
+    private WebElement fullNameInput;
     @FindBy(xpath = "//label[text()='Full name']")
-    public static WebElement fullNameTitle;
+    private WebElement fullNameTitle;
     @FindBy(id = "button")
-    public static WebElement button;
+    private WebElement button;
 
     public KeyPressPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+        this.autocompletePage = new AutocompletePage(driver);
+        this.datepickerPage = new DatepickerPage(driver);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -121,3 +133,4 @@ public class KeyPressPage {
         fullNameInput.sendKeys(Keys.ENTER);
     }
 }
+

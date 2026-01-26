@@ -13,60 +13,71 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class FormPage {
-    WebDriver driver;
-    AutocompletePage autocompletePage = PageFactory.initElements(driver, AutocompletePage.class);
+    private final WebDriver driver;
+    private final AutocompletePage autocompletePage;
     @FindBy(xpath = "//label[@for='first-name']")
-    public static WebElement firstNameTitle;
+    private WebElement firstNameTitle;
     @FindBy(xpath = "//label[@for='last-name']")
-    public static WebElement lastNameTitle;
+    private WebElement lastNameTitle;
     @FindBy(xpath = "//label[@for='job-title']")
-    public static WebElement jobTitle;
+    private WebElement jobTitle;
     @FindBy(xpath = "//label[text()='Highest level of education']")
-    public static WebElement educationTitle;
+    private WebElement educationTitle;
     @FindBy(xpath = "//label[text()='Sex']")
-    public static WebElement sexTitle;
+    private WebElement sexTitle;
     @FindBy(xpath = "//label[@for='select-menu']")
-    public static WebElement experienceTitle;
+    private WebElement experienceTitle;
     @FindBy(xpath = "//label[text()='Date']")
-    public static WebElement dateTitle;
+    private WebElement dateTitle;
     @FindBy(xpath = "//a[text()='Submit']")
-    public static WebElement submitButton;
+    private WebElement submitButton;
     @FindBy(id = "select-menu")
-    public static WebElement experienceSelector;
+    private WebElement experienceSelector;
     @FindBy(id = "radio-button-1")
-    public static WebElement radioButton1;
+    private WebElement radioButton1;
     @FindBy(id = "radio-button-2")
-    public static WebElement radioButton2;
+    private WebElement radioButton2;
     @FindBy(id = "radio-button-3")
-    public static WebElement radioButton3;
+    private WebElement radioButton3;
     @FindBy(id = "first-name")
-    public static WebElement firstNameInput;
+    private WebElement firstNameInput;
     @FindBy(id = "last-name")
-    public static WebElement lastNameInput;
+    private WebElement lastNameInput;
     @FindBy(id = "job-title")
-    public static WebElement jobInput;
+    private WebElement jobInput;
     @FindBy(id = "checkbox-1")
-    public static WebElement checkbox1;
+    private WebElement checkbox1;
     @FindBy(id = "checkbox-2")
-    public static WebElement checkbox2;
+    private WebElement checkbox2;
     @FindBy(id = "checkbox-3")
-    public static WebElement checkbox3;
+    private WebElement checkbox3;
     @FindBy(xpath = "//option[text()='Select an option']")
-    public static WebElement selectorSelectAnOption;
+    private WebElement selectorSelectAnOption;
     @FindBy(xpath = "//option[text()='0-1']")
-    public static WebElement selector01;
+    private WebElement selector01;
     @FindBy(xpath = "//option[text()='2-4']")
-    public static WebElement selector24;
+    private WebElement selector24;
     @FindBy(xpath = "//option[text()='5-9']")
-    public static WebElement selector59;
+    private WebElement selector59;
     @FindBy(xpath = "//option[text()='10+']")
-    public static WebElement selector10plus;
+    private WebElement selector10plus;
 
     public FormPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+        this.autocompletePage = new AutocompletePage(driver);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
