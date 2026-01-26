@@ -8,7 +8,7 @@ public class ErrorSteps extends Drive {
 
     private ErrorPage errorPage;
 
-    private ErrorPage page() {
+    private ErrorPage errorPage() {
         if (errorPage == null) {
             errorPage = new ErrorPage(Drive.getDriver());
         }
@@ -17,6 +17,6 @@ public class ErrorSteps extends Drive {
 
     @Then("Check {string} title {string} has displayed")
     public void titleErrorDisplayed(String arg1, String arg2) {
-        page().isTitleErrorDisplayed(arg1, arg2);
+        errorPage().isTitleErrorDisplayed(arg1, arg2);
     }
 }

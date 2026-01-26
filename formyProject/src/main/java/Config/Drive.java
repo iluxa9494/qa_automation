@@ -1,123 +1,107 @@
 package Config;
 
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.SessionNotCreatedException;
+import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.firefox.FirefoxDriver;
-import org.openqa.selenium.firefox.FirefoxOptions;
+import org.testng.annotations.AfterSuite;
+import org.testng.annotations.BeforeSuite;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Objects;
 import java.util.Properties;
 
-/**
- * Simple WebDriver lifecycle manager.
- *
- * IMPORTANT:
- * - Do NOT rely on TestNG annotations here (Cucumber/JUnit won't run them).
- * - Initialize the driver explicitly from Cucumber hooks or from your first step (DriveSteps).
- */
 public class Drive {
 
-    private static final Object LOCK = new Object();
+    protected static WebDriver driver;
 
-    private static Properties prop;
-    public static WebDriver driver;
+    // --- "Abort run" contract for Cucumber Hooks ---
+    private static volatile boolean runAborted = false;
+    private static volatile Throwable abortCause = null;
 
-    private static Properties loadProperties() throws IOException {
-        if (prop != null) {
-            return prop;
-        }
-        Properties p = new Properties();
-        try (FileInputStream fs = new FileInputStream("src/main/resources/config.properties")) {
-            p.load(fs);
-        }
-        prop = p;
-        return prop;
+    public static boolean isRunAborted() {
+        return runAborted;
     }
 
+    public static Throwable getAbortCause() {
+        return abortCause;
+    }
+
+    public static void markRunAborted(Throwable cause) {
+        runAborted = true;
+        abortCause = cause;
+    }
+
+    public static WebDriver getDriver() {
+        return driver;
+    }
+
+    public static void safeQuit() {
+        try {
+            if (driver != null) driver.quit();
+        } catch (Throwable ignored) {
+        } finally {
+            driver = null;
+        }
+    }
+
+    // --- Existing API (kept for backward compatibility with DriveSteps) ---
+    @BeforeSuite
     public void chooseDriver() throws IOException {
-        startIfNeeded();
-    }
+        if (isRunAborted()) return;
 
-    public static WebDriver startIfNeeded() throws IOException {
-        synchronized (LOCK) {
-            if (driver != null) {
-                return driver;
-            }
+        Properties prop = new Properties();
+        try (FileInputStream fis = new FileInputStream("src/main/resources/config.properties")) {
+            prop.load(fis);
+        }
 
-            Properties p = loadProperties();
+        String driverType = prop.getProperty("driverType", "chrome");
+        String url = prop.getProperty("url");
 
-            String browser = p.getProperty("browser", "chrome").trim().toLowerCase();
-            boolean headless = "1".equals(System.getProperty("formy.headless", "0"))
-                    || "true".equalsIgnoreCase(System.getProperty("formy.headless", "false"));
+        try {
+            switch (driverType) {
+                case "chrome": {
+                    String chromeDriverPath =
+                            System.getenv().getOrDefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver");
+                    System.setProperty("webdriver.chrome.driver", chromeDriverPath);
 
-            if ("chrome".equals(browser)) {
-                ChromeOptions options = new ChromeOptions();
-                if (headless) {
+                    ChromeOptions options = new ChromeOptions();
                     options.addArguments("--headless=new");
+                    options.addArguments("--no-sandbox");
+                    options.addArguments("--disable-dev-shm-usage");
+                    options.addArguments("--disable-gpu");
                     options.addArguments("--window-size=1920,1080");
-                }
-                options.addArguments("--no-sandbox");
-                options.addArguments("--disable-dev-shm-usage");
-                driver = new ChromeDriver(options);
+                    options.addArguments("--remote-allow-origins=*");
 
-            } else if ("firefox".equals(browser)) {
-                FirefoxOptions options = new FirefoxOptions();
-                if (headless) {
-                    options.addArguments("-headless");
-                }
-                driver = new FirefoxDriver(options);
+                    String chromeBin = System.getenv("CHROME_BIN");
+                    if (chromeBin != null && !chromeBin.isBlank()) {
+                        options.setBinary(chromeBin);
+                    }
 
-            } else {
-                throw new IllegalArgumentException("Unsupported browser in config.properties: " + browser);
+                    driver = new ChromeDriver(options);
+                    break;
+                }
+                default:
+                    throw new RuntimeException("Unsupported driverType: " + driverType);
             }
 
-            // Timeouts
             driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
-            driver.manage().timeouts().scriptTimeout(Duration.ofSeconds(30));
-
-            // If not headless, maximize
-            if (!headless) {
-                try {
-                    driver.manage().window().maximize();
-                } catch (Exception ignored) {
-                    // Some remote/headless envs may not support it
-                }
-            }
-
-            // Optional auto-open URL
-            String url = Objects.toString(p.getProperty("url"), "").trim();
-            String overrideUrl = Objects.toString(System.getProperty("formy.url"), "").trim();
-            if (!overrideUrl.isEmpty()) {
-                url = overrideUrl;
-            }
-            if (!url.isEmpty()) {
+            if (url != null && !url.isBlank()) {
                 driver.get(url);
             }
 
-            return driver;
+        } catch (SessionNotCreatedException | WebDriverException e) {
+            // mark whole run aborted (infra failure)
+            markRunAborted(e);
+            safeQuit();
+            throw e;
         }
     }
 
+    @AfterSuite(alwaysRun = true)
     public void stopTest() {
-        stop();
-    }
-
-    public static void stop() {
-        synchronized (LOCK) {
-            if (driver == null) {
-                return;
-            }
-            try {
-                driver.quit();
-            } finally {
-                driver = null;
-            }
-        }
+        safeQuit();
     }
 }
-

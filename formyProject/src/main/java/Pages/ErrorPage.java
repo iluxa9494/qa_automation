@@ -6,33 +6,33 @@ import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.FindBy;
+import org.openqa.selenium.support.PageFactory;
 import org.testng.Assert;
+
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import org.openqa.selenium.support.PageFactory;
-
 public class ErrorPage {
-    private final WebDriver driver;
-    @FindBy(xpath = "//div/h1")
-    private WebElement firstTitle;
-    @FindBy(xpath = "//div/div/p")
-    private WebElement secondTitle;
-    @FindBy(xpath = "//div[@class='dialog']/p")
-    private WebElement thirdTitle;
 
-    private boolean isScreenshotsEnabled() {
-        String v = System.getProperty("formy.screenshots", "1");
-        return !("0".equals(v) || "false".equalsIgnoreCase(v));
+    private final WebDriver driver;
+
+    @FindBy(xpath = "//div/h1")
+    public WebElement firstTitle;
+
+    @FindBy(xpath = "//div/div/p")
+    public WebElement secondTitle;
+
+    @FindBy(xpath = "//div[@class='dialog']/p")
+    public WebElement thirdTitle;
+
+    public ErrorPage(WebDriver driver) {
+        this.driver = driver;
+        PageFactory.initElements(driver, this);
     }
 
     public void makeScreenshot() {
-        if (!isScreenshotsEnabled()) {
-            return;
-        }
-
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -57,16 +57,17 @@ public class ErrorPage {
 
     public void isTitleErrorDisplayed(String arg1, String arg2) {
         switch (arg1) {
-            case ("first"):
+            case "first":
                 checkResult(firstTitle.getText().equals(arg2));
                 break;
-            case ("second"):
+            case "second":
                 checkResult(secondTitle.getText().equals(arg2));
                 break;
-            case ("third"):
+            case "third":
                 checkResult(thirdTitle.getText().equals(arg2));
                 break;
+            default:
+                checkResultFailed();
         }
     }
 }
-
