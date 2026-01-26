@@ -47,9 +47,7 @@ public class Hooks extends Drive {
         try {
             d.getTitle();
             return null;
-        } catch (NoSuchSessionException e) {
-            return e;
-        } catch (SessionNotCreatedException e) {
+        } catch (NoSuchSessionException | SessionNotCreatedException e) {
             return e;
         } catch (WebDriverException e) {
             String m = String.valueOf(e.getMessage()).toLowerCase();
