@@ -65,7 +65,7 @@ echo "▶ Running databaseUsage tests via Maven..."
 cd "$ROOT_DIR/databaseUsage"
 mvn -B clean test
 
-# ✅ Синхронизация отчётов в ./reports (чтобы Jenkins всегда видел reports/**)
+# ✅ Синхронизация отчётов в ./reports
 echo "▶ Sync DB reports to $ROOT_DIR/reports/databaseUsage ..."
 mkdir -p "$ROOT_DIR/reports/databaseUsage"
 
@@ -79,5 +79,5 @@ echo "✔ Database tests finished"
 echo "📄 Reports:"
 echo " - HTML (module): databaseUsage/target/cucumber.html"
 echo " - JSON (module): databaseUsage/target/cucumber/cucumber.json"
-echo " - HTML (jenkins): reports/databaseUsage/cucumber.html"
-echo " - JSON (jenkins): reports/databaseUsage/cucumber.json"
+echo " - HTML (reports): reports/databaseUsage/cucumber.html"
+echo " - JSON (reports): reports/databaseUsage/cucumber.json"
