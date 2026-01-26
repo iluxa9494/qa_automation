@@ -20,7 +20,8 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/gatling"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 
-mkdir -p "${REPORT_DIR}"
+rm -rf "${REPORT_DIR}/latest"
+mkdir -p "${REPORT_DIR}/latest"
 
 # Рабочая директория — root проекта
 cd "${BASE_DIR}"
@@ -44,5 +45,5 @@ java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
   -Dgatling.ci.usersPerSec="${G_USERS}" \
   -Dgatling.ci.durationSec="${G_DUR}" \
   -Dgatling.ci.pauseMs="${G_PAUSE}" \
-  -s simulations.GETBookingFixedDurationLoadCheck \
-  -rf "${REPORT_DIR}"
+  -s simulations.RestfulBookerFullLoad \
+  -rf "${REPORT_DIR}/latest"

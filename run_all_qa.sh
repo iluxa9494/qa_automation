@@ -26,7 +26,8 @@ mkdir -p \
   "${RUN_DIR}/databaseUsage" \
   "${RUN_DIR}/gatling" \
   "${RUN_DIR}/nested" \
-  "${RUN_DIR}/allure-results"
+  "${RUN_DIR}/allure-results" \
+  "${RUN_DIR}/allure-report"
 
 # ---- helpers ----
 wait_for_tcp() {
@@ -148,10 +149,10 @@ copy_if_exists "/app/databaseUsage/target/surefire-reports" "${RUN_DIR}/database
 copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${RUN_DIR}/databaseUsage/" || true
 
 # Gatling
-copy_if_exists "/app/restfulBookerLoad/target/gatling" "${RUN_DIR}/gatling"
+copy_if_exists "/reports/gatling/latest" "${RUN_DIR}/gatling/latest"
 
 # Ensure RUN_DIR/gatling/latest -> newest simulation dir under RUN_DIR/gatling/
-if [[ -d "${RUN_DIR}/gatling" ]]; then
+if [[ -d "${RUN_DIR}/gatling" && ! -d "${RUN_DIR}/gatling/latest" ]]; then
   rm -f "${RUN_DIR}/gatling/latest" || true
   latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
@@ -161,6 +162,27 @@ fi
 
 # Nested (optional)
 copy_if_exists "/app/reports/nested" "${RUN_DIR}/nested" || true
+
+# ---- generate Allure HTML report (CI only) ----
+echo "▶ Generating Allure HTML report (${RUN_DIR}/allure-report)..."
+rm -rf "${RUN_DIR}/allure-report"/*
+allure generate \
+  "${RUN_DIR}/allure-results/formy" \
+  "${RUN_DIR}/allure-results/databaseUsage" \
+  -o "${RUN_DIR}/allure-report" --clean
+
+if [[ ! -f "${RUN_DIR}/allure-report/index.html" ]]; then
+  echo "❌ Allure report was not generated (missing allure-report/index.html) — failing build"
+  exit 12
+fi
+
+if [[ ! -f "${RUN_DIR}/allure-report/data/summary.json" \
+   || ! -f "${RUN_DIR}/allure-report/data/test-cases.json" \
+   || ! -f "${RUN_DIR}/allure-report/data/suites.json" ]]; then
+  echo "❌ Allure report incomplete (missing summary/test-cases/suites) — failing build"
+  exit 13
+fi
+echo "✔ Allure report generated"
 
 # ---- dashboard (per-run) ----
 echo "▶ Generating QA Dashboard (${RUN_DIR}/index.html)..."
@@ -245,6 +267,7 @@ atomic_symlink "current/formy" "${REPORTS_DIR}/formy"
 atomic_symlink "current/databaseUsage" "${REPORTS_DIR}/databaseUsage"
 atomic_symlink "current/gatling" "${REPORTS_DIR}/gatling"
 atomic_symlink "current/allure-results" "${REPORTS_DIR}/allure-results"
+atomic_symlink "current/allure-report" "${REPORTS_DIR}/allure-report"
 
 echo "🧷 Updated pointers:"
 echo " - LATEST=${REPORTS_DIR}/LATEST -> ${RUN_ID}"

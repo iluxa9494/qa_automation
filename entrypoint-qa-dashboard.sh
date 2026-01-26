@@ -14,23 +14,11 @@ echo "▶ [dashboard] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 echo "▶ [dashboard] ALLURE_REPORT_DIR=${ALLURE_REPORT_DIR}"
 echo "▶ [dashboard] PORT=${PORT}"
 
-# ✅ Если есть allure-results — генерим/обновляем allure-report
-if find "${ALLURE_RESULTS_DIR}" -type f -print -quit >/dev/null 2>&1; then
-  if command -v allure >/dev/null 2>&1; then
-    echo "▶ [dashboard] Generating Allure report..."
-    rm -rf "${ALLURE_REPORT_DIR:?}/"*
-    allure generate "${ALLURE_RESULTS_DIR}" -o "${ALLURE_REPORT_DIR}" --clean
-
-    if [[ -f "${ALLURE_REPORT_DIR}/index.html" ]]; then
-      echo "✔ [dashboard] Allure report ready: ${ALLURE_REPORT_DIR}/index.html"
-    else
-      echo "❌ [dashboard] Allure report generation failed (missing index.html)"
-    fi
-  else
-    echo "❌ [dashboard] Allure CLI not found in image"
-  fi
+# Allure report must be generated in CI and uploaded to VPS. No generation here.
+if [[ -f "${ALLURE_REPORT_DIR}/index.html" ]]; then
+  echo "✔ [dashboard] Using pre-generated Allure report: ${ALLURE_REPORT_DIR}/index.html"
 else
-  echo "⚠️ [dashboard] No allure-results found; skipping report generation"
+  echo "❌ [dashboard] Missing pre-generated Allure report at ${ALLURE_REPORT_DIR}"
 fi
 
 # Раздаём статику (дашборд + formy/db/gatling/allure)

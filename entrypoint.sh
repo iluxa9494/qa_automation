@@ -83,12 +83,21 @@ fi
 # ✅ Generate Allure HTML report (static)
 echo "▶ Generating Allure HTML report (${REPORTS_DIR}/allure-report)..."
 rm -rf "${REPORTS_DIR}/allure-report"/*
-allure generate "${REPORTS_DIR}/allure-results" -o "${REPORTS_DIR}/allure-report" --clean
+allure generate \
+  "${REPORTS_DIR}/allure-results/formy" \
+  "${REPORTS_DIR}/allure-results/databaseUsage" \
+  -o "${REPORTS_DIR}/allure-report" --clean
 
-# ✅ Contract: Allure report must have index.html
+# ✅ Contract: Allure report must have index.html and required data files
 if [[ ! -f "${REPORTS_DIR}/allure-report/index.html" ]]; then
   echo "❌ Allure report was not generated (missing allure-report/index.html) — failing build"
   exit 12
+fi
+if [[ ! -f "${REPORTS_DIR}/allure-report/data/summary.json" \
+   || ! -f "${REPORTS_DIR}/allure-report/data/test-cases.json" \
+   || ! -f "${REPORTS_DIR}/allure-report/data/suites.json" ]]; then
+  echo "❌ Allure report incomplete (missing summary/test-cases/suites) — failing build"
+  exit 13
 fi
 echo "✔ Allure report generated"
 

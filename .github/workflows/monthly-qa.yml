@@ -152,6 +152,13 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
+      - name: Verify Allure report (CI)
+        run: |
+          set -euo pipefail
+          test -f reports/current/allure-report/data/summary.json
+          test -f reports/current/allure-report/data/test-cases.json
+          test -f reports/current/allure-report/data/suites.json
+
       - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
         env:
@@ -166,7 +173,7 @@ jobs:
             exit 1
           fi
 
-          RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
+          RUN_ID="$(cat reports/LATEST)"
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           echo "▶ RUN_ID=$RUN_ID"
 
@@ -176,8 +183,8 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
-            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
+          rsync -az --delete -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
+            "reports/runs/${RUN_ID}/" "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/${RUN_ID}/"
 
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
@@ -212,9 +219,9 @@ jobs:
               exit 3
             fi
 
-            # required for VPS allure generation
-            if [ ! -d \"\$SRC/allure-results\" ]; then
-              echo \"❌ Contract failed: missing allure-results under \$SRC\"
+            # required for static Allure HTML
+            if [ ! -f \"\$SRC/allure-report/data/summary.json\" ] || [ ! -f \"\$SRC/allure-report/data/test-cases.json\" ] || [ ! -f \"\$SRC/allure-report/data/suites.json\" ]; then
+              echo \"❌ Contract failed: missing Allure report data files under \$SRC/allure-report\"
               exit 4
             fi
 
