@@ -4,6 +4,7 @@ import Config.Drive;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
+import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.remote.UnreachableBrowserException;
 import org.testng.SkipException;
@@ -20,10 +21,8 @@ public class Hooks extends Drive {
         }
 
         try {
-            // Единый жизненный цикл: стартуем драйвер и открываем URL здесь
             Drive.start();
         } catch (Throwable t) {
-            // Если упали на инициализации — дальше нет смысла гонять остальные сценарии
             runAborted = true;
             abortCause = t;
             throw new SkipException(buildSkipMessage(scenario, t), t);
@@ -41,9 +40,7 @@ public class Hooks extends Drive {
                 }
             }
         } catch (Throwable ignored) {
-            // Не валим teardown из-за диагностик
         } finally {
-            // Всегда аккуратно гасим драйвер после сценария
             Drive.stop();
         }
     }
@@ -58,14 +55,11 @@ public class Hooks extends Drive {
         return msg;
     }
 
-    /**
-     * Грубая, но практичная диагностика “инфра-фаила”.
-     * Если браузер/сессия умерли — дальнейшие сценарии бессмысленны.
-     */
     private Throwable detectInfraFailure() {
         try {
-            if (Drive.driver == null) return new IllegalStateException("WebDriver is null");
-            Drive.driver.getTitle(); // лёгкий ping в живую сессию
+            WebDriver d = Drive.peekDriver();
+            if (d == null) return new IllegalStateException("WebDriver is null");
+            d.getTitle();
             return null;
         } catch (UnreachableBrowserException e) {
             return e;
