@@ -8,70 +8,63 @@ import java.time.Duration;
 
 public class Drive {
 
-    // Оставляем поле, чтобы не ломать существующие Steps, где используется Drive.driver напрямую
-    public static WebDriver driver;
+    private static WebDriver driver;
 
     private static volatile boolean runAborted = false;
-    private static volatile Throwable abortCause = null;
+    private static volatile Throwable abortCause;
 
     public static synchronized WebDriver getDriver() {
+        if (driver == null) {
+            driver = createChromeDriver();
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+        }
         return driver;
     }
 
-    public static synchronized boolean isRunAborted() {
+    private static WebDriver createChromeDriver() {
+        ChromeOptions options = new ChromeOptions();
+
+        // единственный режим: стабильно для CI/Docker
+        options.addArguments("--headless=new");
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--remote-allow-origins=*");
+
+        // если нужно явно указать бинарь Chromium в контейнере
+        String chromeBin = System.getenv("CHROME_BIN");
+        if (chromeBin != null && !chromeBin.isBlank()) {
+            options.setBinary(chromeBin);
+        }
+
+        // chromedriver должен быть в PATH (в твоём CI он ставится пакетом chromium-driver)
+        return new ChromeDriver(options);
+    }
+
+    public static synchronized void safeQuit() {
+        if (driver != null) {
+            try {
+                driver.quit();
+            } catch (Throwable ignored) {
+            } finally {
+                driver = null;
+            }
+        }
+    }
+
+    // ---- abort run mechanics (под Hooks) ----
+
+    public static boolean isRunAborted() {
         return runAborted;
     }
 
-    public static synchronized Throwable getAbortCause() {
+    public static Throwable getAbortCause() {
         return abortCause;
     }
 
     public static synchronized void markRunAborted(Throwable cause) {
         runAborted = true;
         abortCause = cause;
-    }
-
-    /**
-     * Инициализация драйвера. Вызывай в шагах перед использованием страниц.
-     * Если драйвер уже поднят — повторно не создаём.
-     */
-    public static synchronized void chooseDriver() {
-        if (runAborted) return;
-        if (driver != null) return;
-
-        try {
-            ChromeOptions options = new ChromeOptions();
-
-            // Часто нужно для Docker/CI. Локально тоже не мешает.
-            options.addArguments("--no-sandbox");
-            options.addArguments("--disable-dev-shm-usage");
-            options.addArguments("--disable-gpu");
-            options.addArguments("--window-size=1920,1080");
-
-            // Если в CI нужен headless — раскомментируй:
-            // options.addArguments("--headless=new");
-
-            driver = new ChromeDriver(options);
-            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
-        } catch (Throwable t) {
-            markRunAborted(t);
-            safeQuit();
-            throw t;
-        }
-    }
-
-    public static synchronized void safeQuit() {
-        if (driver == null) return;
-        try {
-            driver.quit();
-        } catch (Throwable ignored) {
-        } finally {
-            driver = null;
-        }
-    }
-
-    // оставлено для обратной совместимости, если где-то вызывается
-    public static void stopTest() {
-        safeQuit();
     }
 }
