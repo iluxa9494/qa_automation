@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# tools/run_formy.sh
 set -euo pipefail
 
 BASE_DIR="/app/formyProject"
@@ -60,6 +61,7 @@ if [[ ! -d "${DEPS_DIR}" ]]; then
 fi
 
 java "${JAVA_OPTS_ARR[@]}" \
+  -Dcucumber.execution.parallel.enabled=false \
   -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
   -cp "${CP}" \
   org.junit.runner.JUnitCore CucumberRun

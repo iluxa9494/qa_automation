@@ -1,3 +1,4 @@
+# .github/workflows/monthly-qa.yml
 name: Monthly QA Run
 
 on:
@@ -6,6 +7,11 @@ on:
   workflow_dispatch:
 
 permissions: write-all
+
+# ✅ очередь на уровне GitHub Actions — не даст запускать несколько QA-run одновременно
+concurrency:
+  group: qa_automation-monthly
+  cancel-in-progress: true
 
 jobs:
   qa:
@@ -42,7 +48,6 @@ jobs:
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
           docker compose -f docker-compose.ci.yml pull || true
 
-      # Полезно, пока чиним Gatling в образе (покажет: есть ли вообще gatling внутри)
       - name: Debug QA image (gatling/allure hints)
         run: |
           set -euo pipefail

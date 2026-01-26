@@ -1,3 +1,4 @@
+// restfulBookerLoad/src/test/scala/GETBookingFixedDurationLoadCheck.scala
 package simulations
 
 import io.gatling.core.Predef._
@@ -7,6 +8,16 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class GETBookingFixedDurationLoadCheck extends Simulation {
+
+  // CI-safe defaults (override via -Dgatling.ci.*)
+  private val usersPerSec: Double =
+    Option(System.getProperty("gatling.ci.usersPerSec")).map(_.toDouble).getOrElse(5.0)
+
+  private val durationSec: Int =
+    Option(System.getProperty("gatling.ci.durationSec")).map(_.toInt).getOrElse(30)
+
+  private val pauseMs: Int =
+    Option(System.getProperty("gatling.ci.pauseMs")).map(_.toInt).getOrElse(300)
 
   // HTTP config
   val httpConf = http
@@ -20,18 +31,16 @@ class GETBookingFixedDurationLoadCheck extends Simulation {
         .check(status.in(200 to 304))
     )
 
-  //  Controlled duration + pauses to avoid excessive load/logs/results growth
   val scn = scenario("get booking requests fixed duration load")
-    .during(1.minute) {
+    .during(durationSec.seconds) {
       exec(getBookingRequest())
-        .pause(200.millis) // tune 100-500ms depending on target load
+        .pause(pauseMs.millis)
     }
 
-  //  Stable load profile (instead of forever + burst ramp)
   setUp(
     scn.inject(
-      nothingFor(5.seconds),
-      constantUsersPerSec(20) during (1.minute) // tune to desired throughput
+      nothingFor(2.seconds),
+      constantUsersPerSec(usersPerSec) during (durationSec.seconds)
     ).protocols(httpConf)
   )
 }

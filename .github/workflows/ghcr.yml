@@ -1,3 +1,4 @@
+# .github/workflows/ghcr.yml
 name: Build and push qa_automation image to GHCR
 
 on:
@@ -12,6 +13,11 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/qa_automation
+
+# ✅ чтобы билды образа тоже не копились параллельно
+concurrency:
+  group: qa_automation-ghcr
+  cancel-in-progress: true
 
 jobs:
   build-and-push:
