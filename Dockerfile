@@ -4,10 +4,10 @@ FROM debian:bookworm-slim
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ALLURE_VERSION=2.29.0
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update -o Acquire::Retries=3 && apt-get install -y --no-install-recommends \
     ca-certificates curl unzip tar gzip \
     python3 \
-    openjdk-17-jre-headless \
+    openjdk-17-jdk-headless \
     maven \
     xvfb \
     chromium \
@@ -46,19 +46,16 @@ RUN chmod +x /entrypoint.sh /entrypoint-qa-dashboard.sh /app/run_all_qa.sh \
 # formyProject
 RUN bash -lc 'set -euo pipefail; \
     cd /app/formyProject; \
-    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile'
+    mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 # databaseUsage
 RUN bash -lc 'set -euo pipefail; \
     cd /app/databaseUsage; \
-    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile'
+    mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 # restfulBookerLoad (scala testCompile + deps for gatling main class)
 RUN bash -lc 'set -euo pipefail; \
     cd /app/restfulBookerLoad; \
-    mvn -B -q -DskipTests dependency:copy-dependencies -DoutputDirectory=target/deps; \
-    mvn -B -q -DskipTests test-compile'
+    mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 ENTRYPOINT ["/entrypoint.sh"]

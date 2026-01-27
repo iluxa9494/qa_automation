@@ -2,7 +2,9 @@ package Actions;
 
 import com.mongodb.MongoClientOptions;
 import com.mongodb.MongoClientURI;
-import com.mongodb.client.*;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import io.cucumber.datatable.DataTable;
 import org.bson.Document;
@@ -33,7 +35,7 @@ public class DatabaseUsageMongoDB {
                 .serverSelectionTimeout(5000)
                 .connectTimeout(3000);
         MongoClientURI uri = new MongoClientURI(mongoUri, options);
-        client = MongoClients.create(uri);
+        client = new com.mongodb.MongoClient(uri);
         database = client.getDatabase(dbName);
         System.out.println("Connected to MongoDB: " + mongoUri + " db=" + dbName);
     }
