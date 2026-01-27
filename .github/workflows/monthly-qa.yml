@@ -196,10 +196,47 @@ jobs:
           printf '%s' "$RUN_ID" > reports/LATEST
           ln -sfn "runs/$RUN_ID" reports/current
 
+          # Ensure gatling/latest exists in both root and run folder
+          if [[ -d "reports/gatling" ]]; then
+            latest_dir="$(
+              find "reports/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
+                | sort -nr | head -n 1 | awk '{ $1=""; sub(/^ /,""); print }'
+            )"
+            if [[ -n "${latest_dir:-}" ]]; then
+              rm -rf "reports/gatling/latest" || true
+              cp -a "${latest_dir%/}" "reports/gatling/latest"
+              rm -rf "${RUN_DIR}/gatling/latest" || true
+              cp -a "${latest_dir%/}" "${RUN_DIR}/gatling/latest"
+              echo "✔ Gatling latest resolved: ${latest_dir}"
+            else
+              echo "⚠️  Gatling report not found under reports/gatling"
+              echo "▶ reports/gatling listing:"
+              ls -la "reports/gatling" || true
+            fi
+          fi
+
           echo "▶ reports listing:"
           ls -la reports
           echo "▶ reports/runs/$RUN_ID listing:"
           ls -la "reports/runs/$RUN_ID"
+
+      - name: Verify Gatling simulation log (REQUEST lines)
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+          sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
+          if [[ -z "${sim_log}" ]]; then
+            echo "❌ simulation.log not found under reports/current/gatling"
+            find reports/current/gatling -maxdepth 3 -type f -print || true
+            exit 2
+          fi
+          if ! grep -q "REQUEST" "$sim_log"; then
+            echo "❌ No REQUEST lines found in ${sim_log}"
+            echo "▶ simulation.log head:"
+            head -n 50 "$sim_log" || true
+            exit 2
+          fi
+          echo "✔ Gatling simulation.log contains REQUEST entries"
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -347,6 +384,21 @@ jobs:
               echo \"❌ Contract failed: missing Allure report test-cases JSON files under \$SRC/allure-report/data/test-cases\"
               ls -la \"\$SRC/allure-report/data/test-cases\" || true
               exit 4
+            fi
+
+            # Ensure gatling/latest exists inside run
+            if [ -d \"\$SRC/gatling\" ] && [ ! -d \"\$SRC/gatling/latest\" ]; then
+              latest_dir=\$(
+                find \"\$SRC/gatling\" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\\n' 2>/dev/null \
+                  | sort -nr | head -n 1 | awk '{ \$1=\"\"; sub(/^ /,\"\"); print }'
+              )
+              if [ -n \"\$latest_dir\" ]; then
+                rm -rf \"\$SRC/gatling/latest\" || true
+                cp -a \"\$latest_dir\" \"\$SRC/gatling/latest\"
+                echo \"✔ Gatling latest resolved: \$latest_dir\"
+              else
+                echo \"⚠️  Gatling report not found under \$SRC/gatling\"
+              fi
             fi
 
             atomic_write \"\$BASE/LATEST\" \"\$RUN_ID\"

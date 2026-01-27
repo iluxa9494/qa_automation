@@ -23,10 +23,14 @@ class RestfulBookerFullLoad extends Simulation {
   private val authPassword: String =
     sys.env.getOrElse("RB_AUTH_PASSWORD", "password123")
 
+  private val baseUrl: String =
+    sys.env.getOrElse("RB_BASE_URL", "https://restful-booker.herokuapp.com")
+
+  println(s"[gatling] baseUrl=${baseUrl}")
   println(s"[gatling] auth username=${authUsername}, passwordLength=${authPassword.length}")
 
   val httpConf = http
-    .baseUrl("https://restful-booker.herokuapp.com")
+    .baseUrl(baseUrl)
     .header("Accept", "application/json")
 
   def createToken() =
@@ -43,7 +47,7 @@ class RestfulBookerFullLoad extends Simulation {
     exec(
       http("POST /booking")
         .post("/booking")
-        .body(RawFileBody("src/test/resources/request bodies/createBookingPOST.json")).asJson
+        .body(RawFileBody("request bodies/createBookingPOST.json")).asJson
         .header("Content-Type", "application/json")
         .check(status is 200)
     )
@@ -66,7 +70,7 @@ class RestfulBookerFullLoad extends Simulation {
     exec(
       http("PUT /booking/1")
         .put("/booking/1")
-        .body(RawFileBody("src/test/resources/request bodies/bookingUpdatePUT.json")).asJson
+        .body(RawFileBody("request bodies/bookingUpdatePUT.json")).asJson
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
         .header("Cookie", "token=${token}")
@@ -77,7 +81,7 @@ class RestfulBookerFullLoad extends Simulation {
     exec(
       http("PATCH /booking/1")
         .patch("/booking/1")
-        .body(RawFileBody("src/test/resources/request bodies/partialUpdateBookingPATCH.json")).asJson
+        .body(RawFileBody("request bodies/partialUpdateBookingPATCH.json")).asJson
         .header("Content-Type", "application/json")
         .header("Accept", "application/json")
         .header("Cookie", "token=${token}")
@@ -101,6 +105,7 @@ class RestfulBookerFullLoad extends Simulation {
     )
 
   val scn = scenario("restful-booker full load")
+    .exec(ping())
     .during(durationSec.seconds) {
       group("Auth") {
         exec(createToken())
