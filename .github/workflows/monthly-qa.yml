@@ -163,6 +163,31 @@ jobs:
             find reports/gatling -type l -print -delete || true
           fi
 
+      - name: Materialize versioned reports layout
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+
+          RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+          RUN_DIR="reports/runs/${RUN_ID}"
+          mkdir -p "$RUN_DIR"
+
+          for d in formy databaseUsage gatling allure-results allure-report nested; do
+            if [[ -d "reports/$d" ]]; then
+              cp -a "reports/$d" "$RUN_DIR/"
+            fi
+          done
+          if [[ -f reports/index.html ]]; then
+            cp -a reports/index.html "$RUN_DIR/"
+          fi
+
+          printf '%s' "$RUN_ID" > reports/LATEST
+          ln -sfn "runs/$RUN_ID" reports/current
+
+          echo "▶ reports listing:"
+          ls -la reports
+          echo "▶ reports/runs/$RUN_ID listing:"
+          ls -la "reports/runs/$RUN_ID"
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4
