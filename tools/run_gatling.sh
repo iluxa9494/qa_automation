@@ -20,8 +20,7 @@ REPORT_DIR="${REPORTS_DIR:-/reports}/gatling"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 GATLING_JAVA_OPTS="${GATLING_JAVA_OPTS:-}"
 
-rm -rf "${REPORT_DIR}/latest"
-mkdir -p "${REPORT_DIR}/latest"
+mkdir -p "${REPORT_DIR}"
 
 # Рабочая директория — root проекта
 cd "${BASE_DIR}"
@@ -49,9 +48,9 @@ read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
 if command -v timeout >/dev/null 2>&1; then
   timeout "${G_TIMEOUT}"s java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
     -s simulations.RestfulBookerFullLoad \
-    -rf "${REPORT_DIR}/latest"
+    -rf "${REPORT_DIR}"
 else
   java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
     -s simulations.RestfulBookerFullLoad \
-    -rf "${REPORT_DIR}/latest"
+    -rf "${REPORT_DIR}"
 fi

@@ -154,6 +154,14 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
+      - name: Sanitize gatling symlinks (avoid ELOOP)
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -d reports/gatling ]]; then
+            find reports/gatling -type l -print -delete || true
+          fi
+
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4

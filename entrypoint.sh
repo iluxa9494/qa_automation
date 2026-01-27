@@ -67,10 +67,10 @@ echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}
 
 # Ensure gatling/latest exists if Gatling produced target reports under /reports/gatling/<timestamp>/
 if [[ -d "${REPORTS_DIR}/gatling" ]]; then
-  rm -f "${REPORTS_DIR}/gatling/latest" || true
-  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | grep -v '/latest/' | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
-    ln -s "$(basename "$latest_dir")" "${REPORTS_DIR}/gatling/latest" 2>/dev/null || true
+    rm -rf "${REPORTS_DIR}/gatling/latest" || true
+    cp -a "${latest_dir%/}" "${REPORTS_DIR}/gatling/latest"
   fi
 fi
 

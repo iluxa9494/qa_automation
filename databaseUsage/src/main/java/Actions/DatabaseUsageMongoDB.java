@@ -1,14 +1,17 @@
 package Actions;
 
-import com.mongodb.MongoClientOptions;
-import com.mongodb.MongoClientURI;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.model.Filters;
 import io.cucumber.datatable.DataTable;
 import org.bson.Document;
 import org.testng.Assert;
+
+import java.util.concurrent.TimeUnit;
 
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Updates.combine;
@@ -31,11 +34,12 @@ public class DatabaseUsageMongoDB {
     public void connectToMongoDB(String dbName) {
         // CI: avoid localhost and fail fast on missing DB to prevent 30s hangs per scenario.
         String mongoUri = configOrDefault("MONGO_URI", "mongodb://mongodb:27017");
-        MongoClientOptions.Builder options = MongoClientOptions.builder()
-                .serverSelectionTimeout(5000)
-                .connectTimeout(3000);
-        MongoClientURI uri = new MongoClientURI(mongoUri, options);
-        client = new com.mongodb.MongoClient(uri);
+        MongoClientSettings settings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(mongoUri))
+                .applyToClusterSettings(builder -> builder.serverSelectionTimeout(5, TimeUnit.SECONDS))
+                .applyToSocketSettings(builder -> builder.connectTimeout(3, TimeUnit.SECONDS))
+                .build();
+        client = MongoClients.create(settings);
         database = client.getDatabase(dbName);
         System.out.println("Connected to MongoDB: " + mongoUri + " db=" + dbName);
     }

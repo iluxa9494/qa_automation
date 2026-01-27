@@ -164,12 +164,12 @@ copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${RUN_DIR}/databaseUsage/
 # Gatling
 copy_if_exists "/reports/gatling/latest" "${RUN_DIR}/gatling/latest"
 
-# Ensure RUN_DIR/gatling/latest -> newest simulation dir under RUN_DIR/gatling/
-if [[ -d "${RUN_DIR}/gatling" && ! -d "${RUN_DIR}/gatling/latest" ]]; then
-  rm -f "${RUN_DIR}/gatling/latest" || true
-  latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | head -n 1 || true)"
+# Ensure RUN_DIR/gatling/latest is a real directory (not a symlink)
+if [[ -d "${RUN_DIR}/gatling" ]]; then
+  latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | grep -v '/latest/' | head -n 1 || true)"
   if [[ -n "${latest_dir:-}" ]]; then
-    ln -s "$(basename "$latest_dir")" "${RUN_DIR}/gatling/latest"
+    rm -rf "${RUN_DIR}/gatling/latest" || true
+    cp -a "${latest_dir%/}" "${RUN_DIR}/gatling/latest"
   fi
 fi
 
