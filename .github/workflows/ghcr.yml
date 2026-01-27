@@ -3,6 +3,9 @@ name: Build and push qa_automation image to GHCR
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "reports/**"
+      - ".github/workflows/monthly-qa.yml"
   workflow_dispatch: {}
 
 permissions:

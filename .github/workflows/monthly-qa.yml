@@ -46,7 +46,18 @@ jobs:
         run: |
           set -euo pipefail
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
-          docker compose -f docker-compose.ci.yml pull || true
+          # Pull only when missing to avoid repeated layer downloads
+          if ! docker image inspect "$QA_AUTOMATION_IMAGE" >/dev/null 2>&1; then
+            docker pull "$QA_AUTOMATION_IMAGE"
+          else
+            echo "✔ QA image already present"
+          fi
+          if ! docker image inspect "mysql:8.0" >/dev/null 2>&1; then
+            docker pull mysql:8.0
+          fi
+          if ! docker image inspect "mongo:6" >/dev/null 2>&1; then
+            docker pull mongo:6
+          fi
 
       - name: Debug QA image (gatling/allure hints)
         run: |
@@ -85,6 +96,7 @@ jobs:
           set +e
           # Hard timeout to avoid multi-hour hangs on retries/timeouts inside suites.
           timeout 30m docker compose -f docker-compose.ci.yml up \
+            --pull never \
             --no-deps \
             --abort-on-container-exit \
             --exit-code-from qa_automation \

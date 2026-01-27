@@ -2,6 +2,7 @@
 services:
   mysql:
     image: mysql:8.0
+    pull_policy: if_not_present
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: test
@@ -21,6 +22,7 @@ services:
 
   mongodb:
     image: mongo:6
+    pull_policy: if_not_present
     ports:
       - "27017:27017"
     healthcheck:
@@ -32,6 +34,7 @@ services:
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
+    pull_policy: if_not_present
     shm_size: "1g" # ✅ важно для headless chrome, чтобы не умирал/не ел лишнее
     environment:
       REPORTS_DIR: /reports
