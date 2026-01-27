@@ -45,6 +45,20 @@ echo "▶ [databaseUsage] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [databaseUsage] CP=${CP}"
 echo "▶ [databaseUsage] ALLURE_RESULTS_DIR=${ALLURE_RESULTS_DIR}"
 
+# ----------------------------------------------------------
+# Tags control:
+#  - CI quick run: DB_TAGS='@ci'
+#  - run all:      DB_TAGS=''
+# ----------------------------------------------------------
+if [[ -z "${DB_TAGS+x}" ]]; then
+  DB_TAGS="@ci"
+fi
+if [[ -n "${DB_TAGS}" ]]; then
+  echo "▶ [databaseUsage] cucumber.filter.tags=${DB_TAGS}"
+else
+  echo "▶ [databaseUsage] cucumber.filter.tags=<not set> (running all)"
+fi
+
 # Базовые проверки, чтобы не зависать на пустом classpath
 if [[ ! -d "${DEPS_DIR}" ]]; then
   echo "❌ Missing deps dir: ${DEPS_DIR}"
@@ -53,18 +67,22 @@ if [[ ! -d "${DEPS_DIR}" ]]; then
 fi
 
 # Hard timeout to avoid multi-hour hangs when DB is unreachable.
+DB_JAVA_PROPS=()
+DB_JAVA_PROPS+=("-Dcucumber.execution.parallel.enabled=false")
+DB_JAVA_PROPS+=("-Dallure.results.directory=${ALLURE_RESULTS_DIR}")
+DB_JAVA_PROPS+=("-Dqa.junit.timeout.seconds=${QA_JUNIT_TIMEOUT_SECONDS:-1200}")
+if [[ -n "${DB_TAGS}" ]]; then
+  DB_JAVA_PROPS+=("-Dcucumber.filter.tags=${DB_TAGS}")
+fi
+
 if command -v timeout >/dev/null 2>&1; then
   timeout "${SUITE_TIMEOUT_SEC}"s java "${JAVA_OPTS_ARR[@]}" \
-    -Dcucumber.execution.parallel.enabled=false \
-    -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-    -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
+    "${DB_JAVA_PROPS[@]}" \
     -cp "${CP}" \
     org.junit.runner.JUnitCore CucumberRun
 else
   java "${JAVA_OPTS_ARR[@]}" \
-    -Dcucumber.execution.parallel.enabled=false \
-    -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-    -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
+    "${DB_JAVA_PROPS[@]}" \
     -cp "${CP}" \
     org.junit.runner.JUnitCore CucumberRun
 fi

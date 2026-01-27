@@ -58,7 +58,9 @@ fi
 #  - UI w/o screenshots:FORMY_TAGS='@ui and not @visual'
 #  - full UI:           FORMY_TAGS='@ui'
 # ----------------------------------------------------------
-FORMY_TAGS="${FORMY_TAGS:-}"
+if [[ -z "${FORMY_TAGS+x}" ]]; then
+  FORMY_TAGS="@ci"
+fi
 
 # Optional “kill screenshots” flag for your own steps (если внедришь проверку в коде)
 FORMY_SCREENSHOTS="${FORMY_SCREENSHOTS:-0}"

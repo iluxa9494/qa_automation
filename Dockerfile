@@ -46,11 +46,13 @@ RUN chmod +x /entrypoint.sh /entrypoint-qa-dashboard.sh /app/run_all_qa.sh \
 # formyProject
 RUN bash -lc 'set -euo pipefail; \
     cd /app/formyProject; \
+    mvn -B -q -DskipTests test-compile; \
     mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 # databaseUsage
 RUN bash -lc 'set -euo pipefail; \
     cd /app/databaseUsage; \
+    mvn -B -q -DskipTests test-compile; \
     mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 # restfulBookerLoad (scala testCompile + deps for gatling main class)
