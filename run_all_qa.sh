@@ -67,8 +67,21 @@ run_with_timeout() {
     echo "⏱  Timeout for ${name}: ${t}"
     timeout --preserve-status "$t" "$@"
   else
-    echo "⚠️  'timeout' not found; running ${name} without timeout"
-    "$@"
+    echo "⚠️  'timeout' not found; using watchdog for ${name}: ${t}"
+    "$@" &
+    local cmd_pid=$!
+    (
+      sleep "$t"
+      echo "❌ Timeout for ${name} reached (${t}); terminating pid=${cmd_pid}"
+      kill -TERM "$cmd_pid" >/dev/null 2>&1 || true
+      sleep 5
+      kill -KILL "$cmd_pid" >/dev/null 2>&1 || true
+    ) &
+    local watchdog_pid=$!
+    wait "$cmd_pid"
+    local rc=$?
+    kill "$watchdog_pid" >/dev/null 2>&1 || true
+    return "$rc"
   fi
 }
 

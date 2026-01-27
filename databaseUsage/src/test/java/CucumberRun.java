@@ -1,5 +1,7 @@
 import io.cucumber.junit.Cucumber;
 import io.cucumber.junit.CucumberOptions;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 @RunWith(Cucumber.class)
@@ -14,4 +16,6 @@ import org.junit.runner.RunWith;
         monochrome = true
 )
 public class CucumberRun {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(Integer.getInteger("qa.junit.timeout.seconds", 1200));
 }

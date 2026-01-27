@@ -65,6 +65,7 @@ FORMY_SCREENSHOTS="${FORMY_SCREENSHOTS:-0}"
 JAVA_PROPS=()
 JAVA_PROPS+=("-Dcucumber.execution.parallel.enabled=false")
 JAVA_PROPS+=("-Dallure.results.directory=${ALLURE_RESULTS_DIR}")
+JAVA_PROPS+=("-Dqa.junit.timeout.seconds=${QA_JUNIT_TIMEOUT_SECONDS:-1200}")
 
 if [[ -n "${FORMY_TAGS}" ]]; then
   JAVA_PROPS+=("-Dcucumber.filter.tags=${FORMY_TAGS}")

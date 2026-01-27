@@ -54,5 +54,6 @@ fi
 java "${JAVA_OPTS_ARR[@]}" \
   -Dcucumber.execution.parallel.enabled=false \
   -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+  -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
   -cp "${CP}" \
   org.junit.runner.JUnitCore CucumberRun

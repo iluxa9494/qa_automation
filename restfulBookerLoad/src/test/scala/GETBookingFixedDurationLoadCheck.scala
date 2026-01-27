@@ -42,5 +42,5 @@ class GETBookingFixedDurationLoadCheck extends Simulation {
       nothingFor(2.seconds),
       constantUsersPerSec(usersPerSec) during (durationSec.seconds)
     ).protocols(httpConf)
-  )
+  ).maxDuration((durationSec + 10).seconds)
 }

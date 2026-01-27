@@ -19,6 +19,8 @@ public class Drive {
         if (driver == null) {
             driver = createChromeDriver();
             driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
+            driver.manage().timeouts().scriptTimeout(Duration.ofSeconds(30));
         }
         return driver;
     }

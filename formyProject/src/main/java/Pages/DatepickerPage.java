@@ -4,6 +4,8 @@ import io.cucumber.datatable.DataTable;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.FindBy;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -13,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
@@ -403,56 +406,64 @@ public class DatepickerPage {
         checkResult(arg1.substring(36).equals(arg2));
     }
 
-    public void output(WebElement arg1, String arg2) {
-        try {
-            arg1.getText();
-            System.out.println("PASSED");
-        } catch (NoSuchElementException e) {
-            checkResultFailed();
+    public void output(By locator, String arg2) {
+        int maxAttempts = Integer.getInteger("qa.page.check.retries", 2);
+        if (maxAttempts < 1) {
+            maxAttempts = 1;
+        }
+        long waitSeconds = Long.getLong("qa.page.check.timeout.seconds", 10);
+        long start = System.nanoTime();
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(waitSeconds));
+                WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+                el.getText();
+                long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+                System.out.println("PASSED (attempt " + attempt + "/" + maxAttempts + ", elapsed_ms=" + elapsedMs + ")");
+                return;
+            } catch (StaleElementReferenceException | NoSuchElementException | TimeoutException e) {
+                long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+                System.out.println("Retry page check '" + arg2 + "' attempt " + attempt + "/" + maxAttempts
+                        + " elapsed_ms=" + elapsedMs + " cause=" + e.getClass().getSimpleName());
+                if (attempt == maxAttempts) {
+                    checkResultFailed();
+                }
+            }
         }
     }
 
     public void isPage(String arg1) { //byTitle
         switch (arg1) {
             case "Buttons":
-                WebElement buttonPrimary = driver.findElement(By.xpath("//button[@type='button' and text()='Primary']"));
-                output(buttonPrimary, arg1);
+                output(By.xpath("//button[@type='button' and text()='Primary']"), arg1);
                 break;
             case "Checkbox":
-                WebElement pageTitleCheckbox = driver.findElement(By.xpath("//h1[text()='Checkboxes']"));
-                output(pageTitleCheckbox, arg1);
+                output(By.xpath("//h1[text()='Checkboxes']"), arg1);
                 break;
             case "Drag and Drop":
-                WebElement pageTitleDragDrop = driver.findElement(By.xpath("//h1[text()='Drag the image into the box']"));
-                output(pageTitleDragDrop, arg1);
+                output(By.xpath("//h1[text()='Drag the image into the box']"), arg1);
                 break;
             case "Enabled and disabled elements":
-                WebElement pageTitleEnabled = driver.findElement(By.xpath("//h1[text()='Enabled and Disabled elements']"));
-                output(pageTitleEnabled, arg1);
+                output(By.xpath("//h1[text()='Enabled and Disabled elements']"), arg1);
                 break;
             case "File Upload":
-                WebElement pageTitleFileUpload = driver.findElement(By.tagName("h1"));
-                output(pageTitleFileUpload, arg1);
+                output(By.tagName("h1"), arg1);
                 break;
             case "Key and Mouse Press":
-                WebElement pageTitleKey = driver.findElement(By.xpath("//h1[text()='Keyboard and Mouse Input']"));
-                output(pageTitleKey, arg1);
+                output(By.xpath("//h1[text()='Keyboard and Mouse Input']"), arg1);
                 break;
             case "Page Scroll":
-                WebElement pageTitlePageScroll = driver.findElement(By.xpath("//h1[text()='Large page content']"));
-                output(pageTitlePageScroll, arg1);
+                output(By.xpath("//h1[text()='Large page content']"), arg1);
                 break;
             case "Radio Button":
-                WebElement pageTitleRadioButtons = driver.findElement(By.xpath("//h1[text()='Radio buttons']"));
-                output(pageTitleRadioButtons, arg1);
+                output(By.xpath("//h1[text()='Radio buttons']"), arg1);
                 break;
             case "Thanks":
-                WebElement pageTitleThanks = driver.findElement(By.xpath("//h1[text()='Thanks for submitting your form']"));
-                output(pageTitleThanks, arg1);
+                output(By.xpath("//h1[text()='Thanks for submitting your form']"), arg1);
                 break;
             default:
-                WebElement findElementsInComponentsDropdown = driver.findElement(By.xpath("//h1[text()='" + arg1 + "']"));
-                output(findElementsInComponentsDropdown, arg1);
+                output(By.xpath("//h1[text()='" + arg1 + "']"), arg1);
                 break;
         }
     }
@@ -476,4 +487,3 @@ public class DatepickerPage {
         }
     }
 }
-

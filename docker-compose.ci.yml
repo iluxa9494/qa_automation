@@ -40,6 +40,8 @@ services:
       GATLING_CI_USERS_PER_SEC: "5"
       GATLING_CI_DURATION_SEC: "30"
       GATLING_CI_PAUSE_MS: "300"
+      RB_AUTH_USERNAME: "${RB_AUTH_USERNAME:-admin}"
+      RB_AUTH_PASSWORD: "${RB_AUTH_PASSWORD:-password123}"
     volumes:
       - ./reports:/reports
     command: ["/entrypoint.sh"]

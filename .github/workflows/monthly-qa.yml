@@ -16,7 +16,7 @@ concurrency:
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 60
 
     env:
       QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
@@ -73,6 +73,7 @@ jobs:
 
       - name: Run all QA tests (docker compose)
         id: run_qa
+        timeout-minutes: 45
         run: |
           set -euo pipefail
 
@@ -151,6 +152,14 @@ jobs:
 
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
+
+      - name: Upload reports artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: reports
+          if-no-files-found: warn
 
       - name: Debug nested data.json (CI)
         if: always()

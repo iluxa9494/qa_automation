@@ -18,7 +18,7 @@ fi
 
 REPORT_DIR="${REPORTS_DIR:-/reports}/gatling"
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
-read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
+GATLING_JAVA_OPTS="${GATLING_JAVA_OPTS:-}"
 
 rm -rf "${REPORT_DIR}/latest"
 mkdir -p "${REPORT_DIR}/latest"
@@ -40,10 +40,18 @@ echo "▶ [gatling] REPORT_DIR=${REPORT_DIR}"
 G_USERS="${GATLING_CI_USERS_PER_SEC:-5}"
 G_DUR="${GATLING_CI_DURATION_SEC:-30}"
 G_PAUSE="${GATLING_CI_PAUSE_MS:-300}"
+G_TIMEOUT="${GATLING_CI_TIMEOUT_SEC:-$((G_DUR + 60))}"
 
-java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
-  -Dgatling.ci.usersPerSec="${G_USERS}" \
-  -Dgatling.ci.durationSec="${G_DUR}" \
-  -Dgatling.ci.pauseMs="${G_PAUSE}" \
-  -s simulations.RestfulBookerFullLoad \
-  -rf "${REPORT_DIR}/latest"
+# JVM system properties must be before the main class (or in JAVA_OPTS/GATLING_JAVA_OPTS)
+JAVA_OPTS="${JAVA_OPTS} ${GATLING_JAVA_OPTS} -Dgatling.ci.usersPerSec=${G_USERS} -Dgatling.ci.durationSec=${G_DUR} -Dgatling.ci.pauseMs=${G_PAUSE}"
+read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
+
+if command -v timeout >/dev/null 2>&1; then
+  timeout "${G_TIMEOUT}"s java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
+    -s simulations.RestfulBookerFullLoad \
+    -rf "${REPORT_DIR}/latest"
+else
+  java "${JAVA_OPTS_ARR[@]}" -cp "${CP}" io.gatling.app.Gatling \
+    -s simulations.RestfulBookerFullLoad \
+    -rf "${REPORT_DIR}/latest"
+fi

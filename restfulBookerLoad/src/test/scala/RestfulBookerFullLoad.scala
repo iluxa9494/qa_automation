@@ -17,6 +17,14 @@ class RestfulBookerFullLoad extends Simulation {
   private val pauseMs: Int =
     Option(System.getProperty("gatling.ci.pauseMs")).map(_.toInt).getOrElse(300)
 
+  private val authUsername: String =
+    sys.env.getOrElse("RB_AUTH_USERNAME", "admin")
+
+  private val authPassword: String =
+    sys.env.getOrElse("RB_AUTH_PASSWORD", "password123")
+
+  println(s"[gatling] auth username=${authUsername}, passwordLength=${authPassword.length}")
+
   val httpConf = http
     .baseUrl("https://restful-booker.herokuapp.com")
     .header("Accept", "application/json")
@@ -25,7 +33,7 @@ class RestfulBookerFullLoad extends Simulation {
     exec(
       http("POST /auth")
         .post("/auth")
-        .body(RawFileBody("src/test/resources/request bodies/authCreateTokenPOST.json")).asJson
+        .body(StringBody(s"""{"username":"${authUsername}","password":"${authPassword}"}""")).asJson
         .header("Content-Type", "application/json")
         .check(status is 200)
         .check(jsonPath("$.token").saveAs("token"))
@@ -96,7 +104,7 @@ class RestfulBookerFullLoad extends Simulation {
     .during(durationSec.seconds) {
       group("Auth") {
         exec(createToken())
-      }
+      }.exitHereIfFailed
         .group("Booking") {
           exec(createBooking())
             .exec(getBooking())
@@ -116,5 +124,5 @@ class RestfulBookerFullLoad extends Simulation {
       nothingFor(2.seconds),
       constantUsersPerSec(usersPerSec) during (durationSec.seconds)
     ).protocols(httpConf)
-  )
+  ).maxDuration((durationSec + 10).seconds)
 }
