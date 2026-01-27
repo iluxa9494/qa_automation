@@ -9,22 +9,40 @@ public class DatabaseUsageMySQL {
 
     public static Connection con;
 
-    private static String envOrDefault(String key, String def) {
-        String v = System.getenv(key);
+    private static String configOrDefault(String key, String def) {
+        String v = System.getProperty(key);
+        if (v == null || v.trim().isEmpty()) {
+            v = System.getenv(key);
+        }
         return (v == null || v.trim().isEmpty()) ? def : v.trim();
+    }
+
+    private static String ensureParam(String url, String key, String value) {
+        String marker = key + "=";
+        if (url.contains(marker)) {
+            return url;
+        }
+        return url + (url.contains("?") ? "&" : "?") + key + "=" + value;
     }
 
     public void connectToMySQL() throws ClassNotFoundException, SQLException {
         Class.forName("com.mysql.cj.jdbc.Driver");
         System.out.println("Driver loaded");
 
-        String url  = envOrDefault("MYSQL_URL", "jdbc:mysql://localhost:3306/test");
-        String user = envOrDefault("MYSQL_USER", "test");
-        String pass = envOrDefault("MYSQL_PASSWORD", "test");
+        // CI: avoid localhost and fail fast on missing DB to prevent long hangs.
+        String url  = configOrDefault("MYSQL_URL", "jdbc:mysql://mysql:3306/test");
+        String user = configOrDefault("MYSQL_USER", "test");
+        String pass = configOrDefault("MYSQL_PASS", null);
+        if (pass == null || pass.trim().isEmpty()) {
+            pass = configOrDefault("MYSQL_PASSWORD", "test");
+        }
 
         if (!url.contains("?")) {
             url = url + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
         }
+        // Fail-fast timeouts for CI stability.
+        url = ensureParam(url, "connectTimeout", "3000");
+        url = ensureParam(url, "socketTimeout", "5000");
 
         con = DriverManager.getConnection(url, user, pass);
         System.out.println("Connected to MySQL DB: " + url);

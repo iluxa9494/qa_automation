@@ -1,5 +1,7 @@
 package Actions;
 
+import com.mongodb.MongoClientOptions;
+import com.mongodb.MongoClientURI;
 import com.mongodb.client.*;
 import com.mongodb.client.model.Filters;
 import io.cucumber.datatable.DataTable;
@@ -16,14 +18,22 @@ public class DatabaseUsageMongoDB {
     private MongoDatabase database;
     private MongoCollection<Document> collection;
 
-    private static String envOrDefault(String key, String def) {
-        String v = System.getenv(key);
+    private static String configOrDefault(String key, String def) {
+        String v = System.getProperty(key);
+        if (v == null || v.trim().isEmpty()) {
+            v = System.getenv(key);
+        }
         return (v == null || v.trim().isEmpty()) ? def : v.trim();
     }
 
     public void connectToMongoDB(String dbName) {
-        String mongoUri = envOrDefault("MONGO_URI", "mongodb://localhost:27017");
-        client = MongoClients.create(mongoUri);
+        // CI: avoid localhost and fail fast on missing DB to prevent 30s hangs per scenario.
+        String mongoUri = configOrDefault("MONGO_URI", "mongodb://mongodb:27017");
+        MongoClientOptions.Builder options = MongoClientOptions.builder()
+                .serverSelectionTimeout(5000)
+                .connectTimeout(3000);
+        MongoClientURI uri = new MongoClientURI(mongoUri, options);
+        client = MongoClients.create(uri);
         database = client.getDatabase(dbName);
         System.out.println("Connected to MongoDB: " + mongoUri + " db=" + dbName);
     }

@@ -60,6 +60,7 @@ export MONGO_URI="mongodb://localhost:27017"
 export MYSQL_URL="jdbc:mysql://localhost:3306/test"
 export MYSQL_USER="test"
 export MYSQL_PASSWORD="test"
+export MYSQL_PASS="test"
 
 echo "▶ Running databaseUsage tests via Maven..."
 cd "$ROOT_DIR/databaseUsage"

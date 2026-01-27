@@ -64,6 +64,38 @@ public class AutocompletePage {
         wait.until(ExpectedConditions.elementToBeClickable(el));
     }
 
+    private void clickWithRetry(By locator) {
+        int attempts = 0;
+        while (attempts < 3) {
+            try {
+                attempts++;
+                WebElement el = wait.until(ExpectedConditions.elementToBeClickable(locator));
+                el.click();
+                return;
+            } catch (StaleElementReferenceException | ElementClickInterceptedException e) {
+                if (attempts >= 3) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private void waitForPacResults() {
+        // Google autocomplete renders results asynchronously; wait for container then items.
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-container")));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-item")));
+    }
+
+    private boolean isPacVisibleShort() {
+        try {
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(2));
+            shortWait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-container")));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
+    }
+
     private String valueOf(WebElement el) {
         String v = el.getAttribute("value");
         return v == null ? "" : v;
@@ -191,16 +223,17 @@ public class AutocompletePage {
         field.click();
         field.sendKeys(Keys.SPACE);
 
-        waitVisible(dropdownList);
-
-        if (!dropdownList.getText().equals("")) {
-            checkResult(arg1.equals("Address"));
+        if ("Address".equals(arg1)) {
+            waitForPacResults();
+            waitVisible(dropdownList);
+            checkResult(!dropdownList.getText().equals(""));
         } else {
-            checkResult(!arg1.equals("Address"));
+            checkResult(!isPacVisibleShort());
         }
     }
 
     public void isElementsInDropdownDisplayed(String arg1) {
+        waitForPacResults();
         waitVisible(dropdownList);
         waitVisible(dropdownList2Element);
         waitVisible(dropdownList3Element);
@@ -223,8 +256,8 @@ public class AutocompletePage {
         inputFieldAddress.click();
         inputFieldAddress.sendKeys(Keys.SPACE);
 
-        waitClickable(dropdownList);
-        dropdownList.click();
+        waitForPacResults();
+        clickWithRetry(By.cssSelector(".pac-item"));
 
         wait.until(d -> !valueOf(inputFieldCity).isEmpty());
 

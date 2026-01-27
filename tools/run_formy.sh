@@ -16,6 +16,7 @@ REPORT_DIR="${REPORTS_BASE}/formy"
 
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
+SUITE_TIMEOUT_SEC="${QA_SUITE_TIMEOUT_SECONDS:-1800}"
 
 ALLURE_BASE_DIR="${ALLURE_RESULTS_DIR:-${REPORTS_BASE}/allure-results}"
 ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/formy"
@@ -77,7 +78,15 @@ fi
 JAVA_PROPS+=("-Dformy.screenshots=${FORMY_SCREENSHOTS}")
 echo "▶ [formy] formy.screenshots=${FORMY_SCREENSHOTS}"
 
-java "${JAVA_OPTS_ARR[@]}" \
-  "${JAVA_PROPS[@]}" \
-  -cp "${CP}" \
-  org.junit.runner.JUnitCore CucumberRun
+# Hard timeout to avoid multi-hour hangs on flaky UI retries.
+if command -v timeout >/dev/null 2>&1; then
+  timeout "${SUITE_TIMEOUT_SEC}"s java "${JAVA_OPTS_ARR[@]}" \
+    "${JAVA_PROPS[@]}" \
+    -cp "${CP}" \
+    org.junit.runner.JUnitCore CucumberRun
+else
+  java "${JAVA_OPTS_ARR[@]}" \
+    "${JAVA_PROPS[@]}" \
+    -cp "${CP}" \
+    org.junit.runner.JUnitCore CucumberRun
+fi

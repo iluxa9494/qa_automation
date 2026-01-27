@@ -22,6 +22,7 @@ ALLURE_RESULTS_DIR="${ALLURE_BASE_DIR}/databaseUsage"
 
 JAVA_OPTS="${JAVA_OPTS:-${MAVEN_OPTS:-}}"
 read -r -a JAVA_OPTS_ARR <<< "${JAVA_OPTS}"
+SUITE_TIMEOUT_SEC="${QA_SUITE_TIMEOUT_SECONDS:-1800}"
 
 mkdir -p "${REPORT_DIR}" "${ALLURE_RESULTS_DIR}"
 
@@ -51,9 +52,19 @@ if [[ ! -d "${DEPS_DIR}" ]]; then
   exit 21
 fi
 
-java "${JAVA_OPTS_ARR[@]}" \
-  -Dcucumber.execution.parallel.enabled=false \
-  -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
-  -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
-  -cp "${CP}" \
-  org.junit.runner.JUnitCore CucumberRun
+# Hard timeout to avoid multi-hour hangs when DB is unreachable.
+if command -v timeout >/dev/null 2>&1; then
+  timeout "${SUITE_TIMEOUT_SEC}"s java "${JAVA_OPTS_ARR[@]}" \
+    -Dcucumber.execution.parallel.enabled=false \
+    -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+    -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
+    -cp "${CP}" \
+    org.junit.runner.JUnitCore CucumberRun
+else
+  java "${JAVA_OPTS_ARR[@]}" \
+    -Dcucumber.execution.parallel.enabled=false \
+    -Dallure.results.directory="${ALLURE_RESULTS_DIR}" \
+    -Dqa.junit.timeout.seconds="${QA_JUNIT_TIMEOUT_SECONDS:-1200}" \
+    -cp "${CP}" \
+    org.junit.runner.JUnitCore CucumberRun
+fi

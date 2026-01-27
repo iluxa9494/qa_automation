@@ -16,7 +16,7 @@ concurrency:
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     env:
       QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
@@ -73,7 +73,7 @@ jobs:
 
       - name: Run all QA tests (docker compose)
         id: run_qa
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: |
           set -euo pipefail
 
@@ -83,7 +83,8 @@ jobs:
 
           echo "▶ Running qa_automation..."
           set +e
-          docker compose -f docker-compose.ci.yml up \
+          # Hard timeout to avoid multi-hour hangs on retries/timeouts inside suites.
+          timeout 30m docker compose -f docker-compose.ci.yml up \
             --no-deps \
             --abort-on-container-exit \
             --exit-code-from qa_automation \

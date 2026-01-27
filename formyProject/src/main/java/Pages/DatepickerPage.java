@@ -100,6 +100,62 @@ public class DatepickerPage {
         Assert.fail("FAILED");
     }
 
+    private void clickWithRetry(By locator) {
+        int attempts = 0;
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        while (attempts < 3) {
+            try {
+                attempts++;
+                WebElement el = wait.until(ExpectedConditions.elementToBeClickable(locator));
+                el.click();
+                return;
+            } catch (StaleElementReferenceException | ElementClickInterceptedException e) {
+                if (attempts >= 3) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private void waitForDocumentReady() {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(d -> "complete".equals(
+                String.valueOf(((JavascriptExecutor) d).executeScript("return document.readyState"))
+        ));
+    }
+
+    private boolean waitForHeaderVisible(String text) {
+        By locator = (text == null)
+                ? By.tagName("h1")
+                : By.xpath("//h1[text()='" + text + "']");
+        try {
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
+    }
+
+    private void ensureHeaderVisible(String text) {
+        driver.switchTo().defaultContent();
+        if (waitForHeaderVisible(text)) {
+            return;
+        }
+        for (WebElement frame : driver.findElements(By.tagName("iframe"))) {
+            try {
+                driver.switchTo().defaultContent();
+                driver.switchTo().frame(frame);
+                if (waitForHeaderVisible(text)) {
+                    return;
+                }
+            } catch (NoSuchFrameException ignored) {
+            }
+        }
+        driver.switchTo().defaultContent();
+        checkResultFailed();
+    }
+
     public String getOSValue() throws IOException {
         FileInputStream fis = new FileInputStream("src/main/resources/config.properties");
         Properties prop = new Properties();
@@ -371,10 +427,10 @@ public class DatepickerPage {
     public void isPageOpened(String arg1, String arg2) {
         switch (arg1) {
             case "Formy":
-                formyPage.click();
+                clickWithRetry(By.id("logo"));
                 break;
             case "Form":
-                formPage.click();
+                clickWithRetry(By.xpath("//a[text()='Form']"));
                 break;
             case "Backward":
                 driver.navigate().back();
@@ -386,17 +442,17 @@ public class DatepickerPage {
                 driver.navigate().refresh();
                 break;
             default:
-                WebElement clickOnComponentElement = driver.findElement(By.xpath("//a[@class='dropdown-item' and text()='" + arg1 + "']"));
-                clickOnComponentElement.click();
+                clickWithRetry(By.xpath("//a[@class='dropdown-item' and text()='" + arg1 + "']"));
                 break;
         }
+        waitForDocumentReady();
         if ("Welcome to Formy".equals(arg2)) {
-            try {
-                WebElement welcomeTitle = driver.findElement(By.xpath("//h1[text()='Welcome to Formy']"));
-                checkResult(welcomeTitle.isEnabled());
-            } catch (NoSuchElementException e) {
-                checkResultFailed();
-            }
+            ensureHeaderVisible("Welcome to Formy");
+        } else {
+            ensureHeaderVisible(null);
+        }
+        if ("Welcome to Formy".equals(arg2)) {
+            checkResult(true);
         } else {
             openedPageCheck(driver.getCurrentUrl(), arg2);
         }

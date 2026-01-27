@@ -4,11 +4,13 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: qa
-      MYSQL_USER: qa
-      MYSQL_PASSWORD: qa
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
     ports:
       - "3306:3306"
+    volumes:
+      - ./databaseUsage/src/test/resources/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
       interval: 5s
@@ -36,6 +38,12 @@ services:
       ALLURE_RESULTS_DIR: /reports/allure-results
       # ✅ лимитируем JVM (общий для java в контейнере)
       JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1024m -XX:MaxMetaspaceSize=256m"
+      # ✅ CI: базы живут как сервисы docker-compose (не localhost)
+      MONGO_URI: "mongodb://mongodb:27017"
+      MYSQL_URL: "jdbc:mysql://mysql:3306/test"
+      MYSQL_USER: "test"
+      MYSQL_PASS: "test"
+      MYSQL_PASSWORD: "test"
       # ✅ CI-safe параметры Gatling (переопределят дефолты, если захочешь)
       GATLING_CI_USERS_PER_SEC: "5"
       GATLING_CI_DURATION_SEC: "30"
