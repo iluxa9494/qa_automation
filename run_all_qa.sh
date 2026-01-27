@@ -164,6 +164,27 @@ copy_if_exists "/app/databaseUsage/target/TEST-*.xml" "${RUN_DIR}/databaseUsage/
 # Gatling
 copy_if_exists "/reports/gatling/latest" "${RUN_DIR}/gatling/latest"
 
+# Ensure /reports/gatling/latest exists (copy newest index.html folder if needed)
+if [[ -d "/reports/gatling" && ! -d "/reports/gatling/latest" ]]; then
+  latest_dir="$(
+    find "/reports/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
+      | sort -nr \
+      | head -n 1 \
+      | awk '{ $1=""; sub(/^ /,""); print }'
+  )"
+  if [[ -n "${latest_dir:-}" ]]; then
+    rm -rf "/reports/gatling/latest" || true
+    cp -a "${latest_dir%/}" "/reports/gatling/latest"
+    echo "✔ Gatling latest resolved: ${latest_dir}"
+  else
+    echo "⚠️  Gatling report not found under /reports/gatling"
+    echo "▶ Gatling dir listing:"
+    ls -la "/reports/gatling" || true
+    echo "▶ Gatling index.html search:"
+    find "/reports/gatling" -maxdepth 3 -type f -name index.html -print || true
+  fi
+fi
+
 # Ensure RUN_DIR/gatling/latest is a real directory (not a symlink)
 if [[ -d "${RUN_DIR}/gatling" ]]; then
   latest_dir="$(ls -1dt "${RUN_DIR}/gatling"/*/ 2>/dev/null | grep -v '/latest/' | head -n 1 || true)"
@@ -270,9 +291,10 @@ HTML
 echo "✔ ${RUN_DIR}/index.html generated"
 
 # ---- contract checks (before moving pointers) ----
+gatling_any_index="$(find "${RUN_DIR}/gatling" -type f -name index.html -print -quit 2>/dev/null || true)"
 if [[ ! -f "${RUN_DIR}/formy/cucumber.json" \
    && ! -f "${RUN_DIR}/databaseUsage/cucumber.json" \
-   && ! -f "${RUN_DIR}/gatling/latest/index.html" ]]; then
+   && -z "${gatling_any_index}" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi

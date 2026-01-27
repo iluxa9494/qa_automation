@@ -54,3 +54,24 @@ else
     -s simulations.RestfulBookerFullLoad \
     -rf "${REPORT_DIR}"
 fi
+
+# ---- stabilize "latest" report ----
+echo "▶ [gatling] Resolving latest report folder..."
+latest_report_dir="$(
+  find "${REPORT_DIR}" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
+    | sort -nr \
+    | head -n 1 \
+    | awk '{ $1=""; sub(/^ /,""); print }'
+)"
+
+if [[ -n "${latest_report_dir}" ]]; then
+  rm -rf "${REPORT_DIR}/latest" || true
+  cp -a "${latest_report_dir}" "${REPORT_DIR}/latest"
+  echo "✔ [gatling] latest -> ${latest_report_dir}"
+else
+  echo "❌ [gatling] No Gatling index.html found under ${REPORT_DIR}"
+  echo "▶ [gatling] Report dir listing:"
+  ls -la "${REPORT_DIR}" || true
+  echo "▶ [gatling] index.html search:"
+  find "${REPORT_DIR}" -maxdepth 3 -type f -name index.html -print || true
+fi

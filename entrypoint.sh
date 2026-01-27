@@ -67,10 +67,22 @@ echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}
 
 # Ensure gatling/latest exists if Gatling produced target reports under /reports/gatling/<timestamp>/
 if [[ -d "${REPORTS_DIR}/gatling" ]]; then
-  latest_dir="$(ls -1dt "${REPORTS_DIR}/gatling"/*/ 2>/dev/null | grep -v '/latest/' | head -n 1 || true)"
+  latest_dir="$(
+    find "${REPORTS_DIR}/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
+      | sort -nr \
+      | head -n 1 \
+      | awk '{ $1=""; sub(/^ /,""); print }'
+  )"
   if [[ -n "${latest_dir:-}" ]]; then
     rm -rf "${REPORTS_DIR}/gatling/latest" || true
     cp -a "${latest_dir%/}" "${REPORTS_DIR}/gatling/latest"
+    echo "✔ Gatling latest resolved: ${latest_dir}"
+  else
+    echo "⚠️  Gatling report not found under ${REPORTS_DIR}/gatling"
+    echo "▶ Gatling dir listing:"
+    ls -la "${REPORTS_DIR}/gatling" || true
+    echo "▶ Gatling index.html search:"
+    find "${REPORTS_DIR}/gatling" -maxdepth 3 -type f -name index.html -print || true
   fi
 fi
 
@@ -160,9 +172,10 @@ echo "✔ ${REPORTS_DIR}/index.html generated"
 ls -la "${REPORTS_DIR}" || true
 
 # If no reports at all — fail
+gatling_any_index="$(find "${REPORTS_DIR}/gatling" -type f -name index.html -print -quit 2>/dev/null || true)"
 if [[ ! -f "${REPORTS_DIR}/formy/cucumber.json" \
    && ! -f "${REPORTS_DIR}/databaseUsage/cucumber.json" \
-   && ! -f "${REPORTS_DIR}/gatling/latest/index.html" ]]; then
+   && -z "${gatling_any_index}" ]]; then
   echo "❌ No reports generated at all — failing build"
   exit 10
 fi

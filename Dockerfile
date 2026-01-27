@@ -58,6 +58,7 @@ RUN bash -lc 'set -euo pipefail; \
 # restfulBookerLoad (scala testCompile + deps for gatling main class)
 RUN bash -lc 'set -euo pipefail; \
     cd /app/restfulBookerLoad; \
+    mvn -B -q -DskipTests test-compile; \
     mvn -B -q -DskipTests -Dmaven.test.skip=true dependency:copy-dependencies -DoutputDirectory=target/deps'
 
 ENTRYPOINT ["/entrypoint.sh"]
