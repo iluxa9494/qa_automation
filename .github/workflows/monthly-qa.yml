@@ -152,6 +152,47 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
+      - name: Debug nested data.json (CI)
+        if: always()
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f reports/LATEST ]]; then
+            echo "⚠ reports/LATEST not found; skipping nested debug"
+            exit 0
+          fi
+
+          RUN_ID="$(cat reports/LATEST)"
+          echo "▶ RUN_ID=$RUN_ID"
+
+          UI_DIR="reports/runs/${RUN_ID}/allure-results/formy"
+          DB_DIR="reports/runs/${RUN_ID}/allure-results/databaseUsage"
+          NESTED_JSON="reports/runs/${RUN_ID}/nested/data.json"
+
+          UI_COUNT="$(find "$UI_DIR" -type f -name "*-result.json" 2>/dev/null | wc -l | tr -d ' ')"
+          DB_COUNT="$(find "$DB_DIR" -type f -name "*-result.json" 2>/dev/null | wc -l | tr -d ' ')"
+          echo "▶ UI *-result.json count: $UI_COUNT"
+          echo "▶ DB *-result.json count: $DB_COUNT"
+
+          echo "▶ Sample statuses:"
+          find "$UI_DIR" -type f -name "*-result.json" 2>/dev/null | head -n 1 | while read -r f; do
+            status="$(jq -r '.status // "unknown"' "$f")"
+            echo " - UI: $status"
+          done
+          find "$DB_DIR" -type f -name "*-result.json" 2>/dev/null | head -n 1 | while read -r f; do
+            status="$(jq -r '.status // "unknown"' "$f")"
+            echo " - DB: $status"
+          done
+
+          if [[ -f "$NESTED_JSON" ]]; then
+            echo "▶ generatedAt: $(jq -r '.generatedAt' "$NESTED_JSON")"
+            echo "▶ ui: $(jq -c '.ui' "$NESTED_JSON")"
+            echo "▶ db: $(jq -c '.db' "$NESTED_JSON")"
+          else
+            echo "❌ Missing $NESTED_JSON"
+            exit 2
+          fi
+
       - name: Verify Allure report (CI)
         run: |
           set -euo pipefail

@@ -160,8 +160,22 @@ if [[ -d "${RUN_DIR}/gatling" && ! -d "${RUN_DIR}/gatling/latest" ]]; then
   fi
 fi
 
-# Nested (optional)
-copy_if_exists "/app/reports/nested" "${RUN_DIR}/nested" || true
+# Nested (generated from Allure results)
+echo "▶ Generating nested data.json (${RUN_DIR}/nested/data.json)..."
+export NESTED_OUT_JSON="${RUN_DIR}/nested/data.json"
+export ALLURE_UI_RESULTS_DIR="${RUN_DIR}/allure-results/formy"
+export ALLURE_DB_RESULTS_DIR="${RUN_DIR}/allure-results/databaseUsage"
+export RUN_ID
+if ! command -v javac >/dev/null 2>&1; then
+  echo "❌ javac not found; cannot generate nested data.json"
+  exit 14
+fi
+if ! command -v java >/dev/null 2>&1; then
+  echo "❌ java not found; cannot generate nested data.json"
+  exit 14
+fi
+javac -cp /app /app/tools/NestedReportGenerator.java
+java -cp /app tools.NestedReportGenerator
 
 # ---- generate Allure HTML report (CI only) ----
 echo "▶ Generating Allure HTML report (${RUN_DIR}/allure-report)..."
