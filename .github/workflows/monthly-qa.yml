@@ -252,9 +252,20 @@ jobs:
       - name: Verify Allure report (CI)
         run: |
           set -euo pipefail
-          test -f reports/current/allure-report/data/summary.json
-          test -f reports/current/allure-report/data/test-cases.json
+          test -f reports/current/allure-report/index.html
+          test -f reports/current/allure-report/widgets/summary.json
           test -f reports/current/allure-report/data/suites.json
+          test -d reports/current/allure-report/data/test-cases
+          if ! find reports/current/allure-report/data/test-cases -type f -name "*.json" -print -quit >/dev/null 2>&1; then
+            echo "❌ Missing reports/current/allure-report/data/test-cases/*.json"
+            echo "▶ Allure report tree (top-level):"
+            ls -la reports/current/allure-report || true
+            echo "▶ Allure report data/:"
+            ls -la reports/current/allure-report/data || true
+            echo "▶ Allure report widgets/:"
+            ls -la reports/current/allure-report/widgets || true
+            exit 2
+          fi
 
       - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
@@ -285,8 +296,11 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          rsync -az --delete -e "ssh -i /tmp/vps_key -o StrictHostKeyChecking=no" \
-            "reports/runs/${RUN_ID}/" "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/${RUN_ID}/"
+          echo "▶ Uploading reports via tar over SSH (no rsync dependency)..."
+          tar -C "reports/runs/${RUN_ID}" -czf /tmp/reports_run.tgz .
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
+            "tar -C /home/pet_projects/qa_automation/reports/runs/${RUN_ID} -xzf -" < /tmp/reports_run.tgz
+          rm -f /tmp/reports_run.tgz
 
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
@@ -322,8 +336,16 @@ jobs:
             fi
 
             # required for static Allure HTML
-            if [ ! -f \"\$SRC/allure-report/data/summary.json\" ] || [ ! -f \"\$SRC/allure-report/data/test-cases.json\" ] || [ ! -f \"\$SRC/allure-report/data/suites.json\" ]; then
-              echo \"❌ Contract failed: missing Allure report data files under \$SRC/allure-report\"
+            if [ ! -f \"\$SRC/allure-report/index.html\" ] || [ ! -f \"\$SRC/allure-report/widgets/summary.json\" ] || [ ! -f \"\$SRC/allure-report/data/suites.json\" ] || [ ! -d \"\$SRC/allure-report/data/test-cases\" ]; then
+              echo \"❌ Contract failed: missing Allure report files under \$SRC/allure-report\"
+              ls -la \"\$SRC/allure-report\" || true
+              ls -la \"\$SRC/allure-report/data\" || true
+              ls -la \"\$SRC/allure-report/widgets\" || true
+              exit 4
+            fi
+            if ! find \"\$SRC/allure-report/data/test-cases\" -type f -name \"*.json\" -print -quit >/dev/null 2>&1; then
+              echo \"❌ Contract failed: missing Allure report test-cases JSON files under \$SRC/allure-report/data/test-cases\"
+              ls -la \"\$SRC/allure-report/data/test-cases\" || true
               exit 4
             fi
 

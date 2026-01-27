@@ -224,10 +224,22 @@ if [[ ! -f "${RUN_DIR}/allure-report/index.html" ]]; then
   exit 12
 fi
 
-if [[ ! -f "${RUN_DIR}/allure-report/data/summary.json" \
-   || ! -f "${RUN_DIR}/allure-report/data/test-cases.json" \
-   || ! -f "${RUN_DIR}/allure-report/data/suites.json" ]]; then
-  echo "❌ Allure report incomplete (missing summary/test-cases/suites) — failing build"
+if [[ ! -f "${RUN_DIR}/allure-report/widgets/summary.json" \
+   || ! -f "${RUN_DIR}/allure-report/data/suites.json" \
+   || ! -d "${RUN_DIR}/allure-report/data/test-cases" ]]; then
+  echo "❌ Allure report incomplete (missing widgets/summary.json, data/suites.json, data/test-cases/) — failing build"
+  echo "▶ Allure report tree (top-level):"
+  ls -la "${RUN_DIR}/allure-report" || true
+  echo "▶ Allure report data/:"
+  ls -la "${RUN_DIR}/allure-report/data" || true
+  echo "▶ Allure report widgets/:"
+  ls -la "${RUN_DIR}/allure-report/widgets" || true
+  exit 13
+fi
+if ! find "${RUN_DIR}/allure-report/data/test-cases" -type f -name "*.json" -print -quit 2>/dev/null | grep -q .; then
+  echo "❌ Allure report incomplete (no data/test-cases/*.json) — failing build"
+  echo "▶ Allure report data/test-cases/:"
+  ls -la "${RUN_DIR}/allure-report/data/test-cases" || true
   exit 13
 fi
 echo "✔ Allure report generated"
