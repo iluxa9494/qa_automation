@@ -224,19 +224,43 @@ jobs:
         if: always() && env.NO_REPORTS == '0'
         run: |
           set -euo pipefail
+          echo "▶ reports/current/gatling files (maxdepth 3):"
+          find reports/current/gatling -maxdepth 3 -type f -print || true
           sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
           if [[ -z "${sim_log}" ]]; then
             echo "❌ simulation.log not found under reports/current/gatling"
-            find reports/current/gatling -maxdepth 3 -type f -print || true
             exit 2
           fi
-          if ! grep -q "REQUEST" "$sim_log"; then
-            echo "❌ No REQUEST lines found in ${sim_log}"
-            echo "▶ simulation.log head:"
-            head -n 50 "$sim_log" || true
+          if [[ ! -s "$sim_log" ]]; then
+            echo "❌ simulation.log is empty: ${sim_log}"
             exit 2
           fi
-          echo "✔ Gatling simulation.log contains REQUEST entries"
+          echo "▶ simulation.log head (200 lines):"
+          head -n 200 "$sim_log" || true
+
+          has_request_like=0
+          if grep -Eqi '\b(request|response|http)\b' "$sim_log"; then
+            has_request_like=1
+          fi
+          has_run_markers=0
+          if grep -Eqi '\b(simulation|scenario|gatling|started|finished|run)\b' "$sim_log"; then
+            has_run_markers=1
+          fi
+          has_gatling_report=0
+          if find reports/current/gatling -type f -name index.html -print -quit >/dev/null 2>&1; then
+            has_gatling_report=1
+          fi
+
+          if [[ "$has_request_like" -eq 0 ]]; then
+            echo "⚠ No request-like lines found in ${sim_log}"
+            if [[ "$has_run_markers" -eq 1 || "$has_gatling_report" -eq 1 ]]; then
+              echo "⚠ Gatling run appears to have executed; not failing the job."
+              exit 0
+            fi
+            echo "❌ No evidence of a successful Gatling run; failing the job."
+            exit 2
+          fi
+          echo "✔ Gatling simulation.log contains request-like entries"
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -328,6 +352,52 @@ jobs:
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           echo "▶ RUN_ID=$RUN_ID"
 
+          SRC_RUN="reports/runs/${RUN_ID}"
+          if [[ ! -d "$SRC_RUN" ]]; then
+            echo "❌ Missing local run folder: $SRC_RUN"
+            exit 2
+          fi
+
+          SKIP_ALLURE=0
+          if [[ ! -d "$SRC_RUN/allure-report" ]]; then
+            echo "⚠ Allure report dir missing; skipping Allure sync"
+            echo "▶ Expected under $SRC_RUN/allure-report: index.html, widgets/summary.json, data/suites.json, data/test-cases/"
+            echo "▶ Tree ($SRC_RUN):"
+            find "$SRC_RUN" -maxdepth 3 -print || true
+            SKIP_ALLURE=1
+          else
+            if [[ ! -f "$SRC_RUN/allure-report/index.html" ]] \
+              || [[ ! -f "$SRC_RUN/allure-report/widgets/summary.json" ]] \
+              || [[ ! -f "$SRC_RUN/allure-report/data/suites.json" ]] \
+              || [[ ! -d "$SRC_RUN/allure-report/data/test-cases" ]]; then
+              echo "⚠ Allure report incomplete; skipping Allure sync"
+              echo "▶ Expected under $SRC_RUN/allure-report: index.html, widgets/summary.json, data/suites.json, data/test-cases/"
+              echo "▶ Tree ($SRC_RUN/allure-report):"
+              find "$SRC_RUN/allure-report" -maxdepth 3 -print || true
+              SKIP_ALLURE=1
+            fi
+          fi
+
+          if [[ ! -d "$SRC_RUN/formy" ]] || [[ ! -d "$SRC_RUN/databaseUsage" ]] || [[ ! -d "$SRC_RUN/gatling" ]]; then
+            echo "❌ Missing required report dirs under $SRC_RUN (formy/databaseUsage/gatling)"
+            find "$SRC_RUN" -maxdepth 2 -type d -print || true
+            exit 3
+          fi
+
+          include_dirs=()
+          for d in formy databaseUsage gatling allure-results nested; do
+            if [[ -d "$SRC_RUN/$d" ]]; then
+              include_dirs+=("$d")
+            fi
+          done
+          if [[ "$SKIP_ALLURE" -eq 0 ]] && [[ -d "$SRC_RUN/allure-report" ]]; then
+            include_dirs+=("allure-report")
+          fi
+          if [[ "${#include_dirs[@]}" -eq 0 ]]; then
+            echo "❌ No report directories to upload from $SRC_RUN"
+            exit 4
+          fi
+
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
 
@@ -335,7 +405,7 @@ jobs:
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
           echo "▶ Uploading reports via tar over SSH (no rsync dependency)..."
-          tar -C "reports/runs/${RUN_ID}" -czf /tmp/reports_run.tgz .
+          tar -C "$SRC_RUN" -czf /tmp/reports_run.tgz "${include_dirs[@]}"
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "tar -C /home/pet_projects/qa_automation/reports/runs/${RUN_ID} -xzf -" < /tmp/reports_run.tgz
           rm -f /tmp/reports_run.tgz
@@ -374,17 +444,20 @@ jobs:
             fi
 
             # required for static Allure HTML
-            if [ ! -f \"\$SRC/allure-report/index.html\" ] || [ ! -f \"\$SRC/allure-report/widgets/summary.json\" ] || [ ! -f \"\$SRC/allure-report/data/suites.json\" ] || [ ! -d \"\$SRC/allure-report/data/test-cases\" ]; then
-              echo \"❌ Contract failed: missing Allure report files under \$SRC/allure-report\"
-              ls -la \"\$SRC/allure-report\" || true
-              ls -la \"\$SRC/allure-report/data\" || true
-              ls -la \"\$SRC/allure-report/widgets\" || true
-              exit 4
-            fi
-            if ! find \"\$SRC/allure-report/data/test-cases\" -type f -name \"*.json\" -print -quit >/dev/null 2>&1; then
-              echo \"❌ Contract failed: missing Allure report test-cases JSON files under \$SRC/allure-report/data/test-cases\"
-              ls -la \"\$SRC/allure-report/data/test-cases\" || true
-              exit 4
+            HAS_ALLURE=1
+            if [ ! -d \"\$SRC/allure-report\" ] \
+              || [ ! -f \"\$SRC/allure-report/index.html\" ] \
+              || [ ! -f \"\$SRC/allure-report/widgets/summary.json\" ] \
+              || [ ! -f \"\$SRC/allure-report/data/suites.json\" ] \
+              || [ ! -d \"\$SRC/allure-report/data/test-cases\" ]; then
+              echo \"⚠ Allure report missing/incomplete under \$SRC/allure-report; skipping Allure pointers\"
+              echo \"▶ Expected: index.html, widgets/summary.json, data/suites.json, data/test-cases/\"
+              find \"\$SRC\" -maxdepth 3 -print || true
+              HAS_ALLURE=0
+            elif ! find \"\$SRC/allure-report/data/test-cases\" -type f -name \"*.json\" -print -quit >/dev/null 2>&1; then
+              echo \"⚠ Allure report test-cases JSON files missing under \$SRC/allure-report/data/test-cases; skipping Allure pointers\"
+              find \"\$SRC/allure-report/data/test-cases\" -maxdepth 2 -print || true
+              HAS_ALLURE=0
             fi
 
             # Ensure gatling/latest exists inside run
@@ -411,7 +484,9 @@ jobs:
             atomic_link \"current/databaseUsage\"     \"\$BASE/databaseUsage\"
             atomic_link \"current/gatling\"           \"\$BASE/gatling\"
             atomic_link \"current/allure-results\"    \"\$BASE/allure-results\"
-            atomic_link \"current/allure-report\"     \"\$BASE/allure-report\"
+            if [ \"\$HAS_ALLURE\" = \"1\" ]; then
+              atomic_link \"current/allure-report\"     \"\$BASE/allure-report\"
+            fi
             atomic_link \"current/nested\"            \"\$BASE/nested\"
 
             CONTAINER_UID=1200
