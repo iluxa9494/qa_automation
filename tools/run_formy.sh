@@ -10,6 +10,7 @@ if [[ -d "${BASE_DIR}/formyProject" ]]; then
 fi
 
 ROOT_TARGET="${BASE_DIR}/target"
+FEATURES_DIR="${BASE_DIR}/src/test/features"
 
 REPORTS_BASE="${REPORTS_DIR:-/reports}"
 REPORT_DIR="${REPORTS_BASE}/formy"
@@ -59,7 +60,11 @@ fi
 #  - full UI:           FORMY_TAGS='@ui'
 # ----------------------------------------------------------
 if [[ -z "${FORMY_TAGS+x}" ]]; then
-  FORMY_TAGS="@ci"
+  if [[ -n "${CI:-}" && "${CI}" != "0" && "${CI}" != "false" ]]; then
+    FORMY_TAGS=""
+  else
+    FORMY_TAGS="@ci"
+  fi
 fi
 
 # Optional “kill screenshots” flag for your own steps (если внедришь проверку в коде)
@@ -69,6 +74,24 @@ JAVA_PROPS=()
 JAVA_PROPS+=("-Dcucumber.execution.parallel.enabled=false")
 JAVA_PROPS+=("-Dallure.results.directory=${ALLURE_RESULTS_DIR}")
 JAVA_PROPS+=("-Dqa.junit.timeout.seconds=${QA_JUNIT_TIMEOUT_SECONDS:-1200}")
+
+TOTAL_FEATURES="0"
+TOTAL_SCENARIOS="0"
+if [[ -d "${FEATURES_DIR}" ]]; then
+  TOTAL_FEATURES="$(find "${FEATURES_DIR}" -type f -name '*.feature' 2>/dev/null | wc -l | tr -d ' ')"
+  TOTAL_SCENARIOS="$(find "${FEATURES_DIR}" -type f -name '*.feature' -print0 2>/dev/null | xargs -0 grep -E "^[[:space:]]*Scenario( Outline)?: " -h | wc -l | tr -d ' ')"
+fi
+
+MAVEN_FLAGS_RAW="${MAVEN_OPTS:-} ${MAVEN_CLI_OPTS:-} ${SUREFIRE_OPTS:-} ${JAVA_TOOL_OPTIONS:-}"
+MAVEN_FLAGS="$(printf '%s' "${MAVEN_FLAGS_RAW}" | tr ' ' '\n' | grep -E '^-D(test=|skipTests|maven.test.skip|surefire\\.|failsafe\\.)' | paste -sd' ' - || true)"
+if [[ -z "${MAVEN_FLAGS}" ]]; then
+  MAVEN_FLAGS="<none> (runner=JUnitCore)"
+fi
+
+echo "▶ [formy] Features dir: ${FEATURES_DIR}"
+echo "▶ [formy] Total feature files: ${TOTAL_FEATURES}"
+echo "▶ [formy] Total scenarios (raw): ${TOTAL_SCENARIOS}"
+echo "▶ [formy] Maven/Surefire flags: ${MAVEN_FLAGS}"
 
 if [[ -n "${FORMY_TAGS}" ]]; then
   JAVA_PROPS+=("-Dcucumber.filter.tags=${FORMY_TAGS}")
@@ -91,4 +114,9 @@ else
     "${JAVA_PROPS[@]}" \
     -cp "${CP}" \
     org.junit.runner.JUnitCore CucumberRun
+fi
+
+if [[ -d "${ALLURE_RESULTS_DIR}" ]]; then
+  executed_count="$(find "${ALLURE_RESULTS_DIR}" -type f -name '*-result.json' 2>/dev/null | wc -l | tr -d ' ')"
+  echo "▶ [formy] Executed scenarios (Allure results): ${executed_count}"
 fi

@@ -37,6 +37,7 @@ services:
     pull_policy: if_not_present
     shm_size: "1g" # ✅ важно для headless chrome, чтобы не умирал/не ел лишнее
     environment:
+      CI: "true"
       REPORTS_DIR: /reports
       ALLURE_RESULTS_DIR: /reports/allure-results
       # ✅ лимитируем JVM (общий для java в контейнере)
