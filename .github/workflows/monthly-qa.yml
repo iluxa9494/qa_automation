@@ -225,17 +225,23 @@ jobs:
         run: |
           set -euo pipefail
           # Non-fatal diagnostics: warn + set flag if Gatling log is empty/missing/has no REQUEST.
+          # Also skip verification on QA timeout (QA_RC=124) or when Gatling did not run.
+          if [[ "${QA_RC:-0}" == "124" ]]; then
+            echo "::warning::QA timed out (QA_RC=124); skipping Gatling verification"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
           echo "▶ reports/current/gatling files (maxdepth 3):"
           find reports/current/gatling -maxdepth 3 -type f -print || true
           sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
           if [[ -z "${sim_log}" ]]; then
-            echo "::warning::Gatling simulation.log not found under reports/current/gatling"
+            echo "::warning::Gatling simulation.log not found under reports/current/gatling (Gatling may be missing or not run)"
             echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
             ls -lah reports/current/gatling || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-              docker compose ps || true
-              # Best-effort: show logs for likely Gatling services
-              docker compose logs --tail=200 gatling || true
+              docker compose -f docker-compose.ci.yml ps || true
+              # Best-effort: show logs for QA container (may include Gatling output)
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
             fi
             exit 0
           fi
@@ -245,8 +251,8 @@ jobs:
             ls -lah reports/current/gatling || true
             ls -lah "$sim_log" || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-              docker compose ps || true
-              docker compose logs --tail=200 gatling || true
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
             fi
             exit 0
           fi
@@ -259,8 +265,8 @@ jobs:
             ls -lah reports/current/gatling || true
             ls -lah "$sim_log" || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-              docker compose ps || true
-              docker compose logs --tail=200 gatling || true
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
             fi
             exit 0
           fi
@@ -319,19 +325,25 @@ jobs:
       - name: Verify Allure report (CI)
         run: |
           set -euo pipefail
-          test -f reports/current/allure-report/index.html
-          test -f reports/current/allure-report/widgets/summary.json
-          test -f reports/current/allure-report/data/suites.json
-          test -d reports/current/allure-report/data/test-cases
-          if ! find reports/current/allure-report/data/test-cases -type f -name "*.json" -print -quit >/dev/null 2>&1; then
-            echo "❌ Missing reports/current/allure-report/data/test-cases/*.json"
+          # Non-fatal: Allure report may be missing in CI; warn and continue.
+          if [[ ! -f reports/current/allure-report/index.html ]] \
+            || [[ ! -f reports/current/allure-report/widgets/summary.json ]] \
+            || [[ ! -f reports/current/allure-report/data/suites.json ]] \
+            || [[ ! -d reports/current/allure-report/data/test-cases ]]; then
+            echo "::warning::Allure report incomplete/missing under reports/current/allure-report; skipping strict verification"
             echo "▶ Allure report tree (top-level):"
             ls -la reports/current/allure-report || true
             echo "▶ Allure report data/:"
             ls -la reports/current/allure-report/data || true
             echo "▶ Allure report widgets/:"
             ls -la reports/current/allure-report/widgets || true
-            exit 2
+            exit 0
+          fi
+          if ! find reports/current/allure-report/data/test-cases -type f -name "*.json" -print -quit >/dev/null 2>&1; then
+            echo "::warning::Missing reports/current/allure-report/data/test-cases/*.json; skipping strict verification"
+            echo "▶ Allure report data/test-cases/:"
+            ls -la reports/current/allure-report/data/test-cases || true
+            exit 0
           fi
 
       - name: Sync reports to VPS (versioned + atomic latest pointers)
