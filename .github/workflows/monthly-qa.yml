@@ -247,6 +247,7 @@ jobs:
 
       - name: Debug nested data.json (CI)
         if: always()
+        continue-on-error: true
         run: |
           set -euo pipefail
 
