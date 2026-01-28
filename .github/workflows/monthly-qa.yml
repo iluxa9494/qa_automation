@@ -229,14 +229,23 @@ jobs:
           if [[ "${QA_RC:-0}" == "124" ]]; then
             echo "::warning::QA timed out (QA_RC=124); skipping Gatling verification"
             echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
             exit 0
           fi
           echo "▶ reports/current/gatling files (maxdepth 3):"
           find reports/current/gatling -maxdepth 3 -type f -print || true
+          echo "▶ reports/current/gatling listing:"
+          ls -lah reports/current/gatling || true
           sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
+          gatling_index="$(find reports/current/gatling -type f -name index.html -print -quit 2>/dev/null || true)"
+          gatling_dir=""
+          if [[ -n "${gatling_index}" ]]; then
+            gatling_dir="$(dirname "$gatling_index")"
+          fi
           if [[ -z "${sim_log}" ]]; then
             echo "::warning::Gatling simulation.log not found under reports/current/gatling (Gatling may be missing or not run)"
             echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
             ls -lah reports/current/gatling || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
               docker compose -f docker-compose.ci.yml ps || true
@@ -248,6 +257,7 @@ jobs:
           if [[ ! -s "$sim_log" ]]; then
             echo "::warning::Gatling simulation.log is empty: ${sim_log}"
             echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
             ls -lah reports/current/gatling || true
             ls -lah "$sim_log" || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -258,10 +268,13 @@ jobs:
           fi
           echo "▶ simulation.log head (200 lines):"
           head -n 200 "$sim_log" || true
+          echo "▶ simulation.log version hints:"
+          grep -m1 -E "Gatling|version|Version" "$sim_log" || true
 
           if ! grep -q "REQUEST" "$sim_log"; then
             echo "::warning::No REQUEST lines found in ${sim_log}"
             echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
             ls -lah reports/current/gatling || true
             ls -lah "$sim_log" || true
             if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
@@ -271,7 +284,20 @@ jobs:
             exit 0
           fi
           echo "GATLING_HAS_REQUESTS=true" >> "$GITHUB_ENV"
-          echo "✔ Gatling simulation.log contains REQUEST entries"
+          if [[ -n "${gatling_dir}" ]]; then
+            echo "▶ Gatling report dir: ${gatling_dir}"
+            ls -lah "${gatling_dir}" || true
+            if [[ -s "${gatling_dir}/js/stats.json" ]]; then
+              echo "GATLING_OK=true" >> "$GITHUB_ENV"
+              echo "✔ Gatling report looks valid (index.html + js/stats.json)"
+            else
+              echo "::warning::Gatling report missing/empty js/stats.json under ${gatling_dir}"
+              echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "::warning::Gatling index.html not found under reports/current/gatling"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+          fi
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4
@@ -331,6 +357,7 @@ jobs:
             || [[ ! -f reports/current/allure-report/data/suites.json ]] \
             || [[ ! -d reports/current/allure-report/data/test-cases ]]; then
             echo "::warning::Allure report incomplete/missing under reports/current/allure-report; skipping strict verification"
+            echo "ALLURE_REPORT_OK=false" >> "$GITHUB_ENV"
             echo "▶ Allure report tree (top-level):"
             ls -la reports/current/allure-report || true
             echo "▶ Allure report data/:"
@@ -341,10 +368,12 @@ jobs:
           fi
           if ! find reports/current/allure-report/data/test-cases -type f -name "*.json" -print -quit >/dev/null 2>&1; then
             echo "::warning::Missing reports/current/allure-report/data/test-cases/*.json; skipping strict verification"
+            echo "ALLURE_REPORT_OK=false" >> "$GITHUB_ENV"
             echo "▶ Allure report data/test-cases/:"
             ls -la reports/current/allure-report/data/test-cases || true
             exit 0
           fi
+          echo "ALLURE_REPORT_OK=true" >> "$GITHUB_ENV"
 
       - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
@@ -376,6 +405,7 @@ jobs:
           fi
 
           SKIP_ALLURE=0
+          SKIP_GATLING=0
           if [[ ! -d "$SRC_RUN/allure-report" ]]; then
             echo "⚠ Allure report dir missing; skipping Allure sync"
             echo "▶ Expected under $SRC_RUN/allure-report: index.html, widgets/summary.json, data/suites.json, data/test-cases/"
@@ -395,10 +425,9 @@ jobs:
             fi
           fi
 
-          if [[ ! -d "$SRC_RUN/formy" ]] || [[ ! -d "$SRC_RUN/databaseUsage" ]] || [[ ! -d "$SRC_RUN/gatling" ]]; then
-            echo "❌ Missing required report dirs under $SRC_RUN (formy/databaseUsage/gatling)"
-            find "$SRC_RUN" -maxdepth 2 -type d -print || true
-            exit 3
+          if [[ ! -d "$SRC_RUN/gatling" ]]; then
+            echo "⚠ Gatling report dir missing; skipping Gatling validation"
+            SKIP_GATLING=1
           fi
 
           include_dirs=()
@@ -413,6 +442,13 @@ jobs:
           if [[ "${#include_dirs[@]}" -eq 0 ]]; then
             echo "❌ No report directories to upload from $SRC_RUN"
             exit 4
+          fi
+
+          GATLING_OK="${GATLING_OK:-false}"
+          ALLURE_REPORT_OK="${ALLURE_REPORT_OK:-false}"
+          PUBLISH_OK=0
+          if [[ "$GATLING_OK" == "true" && "$ALLURE_REPORT_OK" == "true" ]]; then
+            PUBLISH_OK=1
           fi
 
           echo "$VPS_SSH_KEY" > /tmp/vps_key
@@ -432,6 +468,7 @@ jobs:
 
             BASE=/home/pet_projects/qa_automation/reports
             RUN_ID='$RUN_ID'
+            PUBLISH_OK='$PUBLISH_OK'
 
             atomic_write() {
               local path=\"\$1\"
@@ -454,13 +491,6 @@ jobs:
               exit 2
             fi
 
-            # light contract
-            if [ ! -d \"\$SRC/formy\" ] || [ ! -d \"\$SRC/databaseUsage\" ] || [ ! -d \"\$SRC/gatling\" ]; then
-              echo \"❌ Contract failed: missing required dirs under \$SRC\"
-              exit 3
-            fi
-
-            # required for static Allure HTML
             HAS_ALLURE=1
             if [ ! -d \"\$SRC/allure-report\" ] \
               || [ ! -f \"\$SRC/allure-report/index.html\" ] \
@@ -475,6 +505,25 @@ jobs:
               echo \"⚠ Allure report test-cases JSON files missing under \$SRC/allure-report/data/test-cases; skipping Allure pointers\"
               find \"\$SRC/allure-report/data/test-cases\" -maxdepth 2 -print || true
               HAS_ALLURE=0
+            fi
+
+            HAS_GATLING=0
+            gatling_index=\$(find \"\$SRC/gatling\" -type f -name index.html -print -quit 2>/dev/null || true)
+            if [ -n \"\$gatling_index\" ]; then
+              gatling_dir=\$(dirname \"\$gatling_index\")
+              if [ -s \"\$gatling_dir/js/stats.json\" ]; then
+                HAS_GATLING=1
+              else
+                echo \"⚠ Gatling report missing/empty js/stats.json under \$gatling_dir\"
+              fi
+            else
+              echo \"⚠ Gatling index.html not found under \$SRC/gatling\"
+            fi
+
+            if [ \"\$PUBLISH_OK\" != \"1\" ] || [ \"\$HAS_ALLURE\" != \"1\" ] || [ \"\$HAS_GATLING\" != \"1\" ]; then
+              echo \"⚠ Reports incomplete; not updating LATEST/current pointers\"
+              echo \"▶ PUBLISH_OK=\$PUBLISH_OK, HAS_ALLURE=\$HAS_ALLURE, HAS_GATLING=\$HAS_GATLING\"
+              exit 0
             fi
 
             # Ensure gatling/latest exists inside run
