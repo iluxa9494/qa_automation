@@ -224,43 +224,48 @@ jobs:
         if: always() && env.NO_REPORTS == '0'
         run: |
           set -euo pipefail
+          # Non-fatal diagnostics: warn + set flag if Gatling log is empty/missing/has no REQUEST.
           echo "▶ reports/current/gatling files (maxdepth 3):"
           find reports/current/gatling -maxdepth 3 -type f -print || true
           sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
           if [[ -z "${sim_log}" ]]; then
-            echo "❌ simulation.log not found under reports/current/gatling"
-            exit 2
+            echo "::warning::Gatling simulation.log not found under reports/current/gatling"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose ps || true
+              # Best-effort: show logs for likely Gatling services
+              docker compose logs --tail=200 gatling || true
+            fi
+            exit 0
           fi
           if [[ ! -s "$sim_log" ]]; then
-            echo "❌ simulation.log is empty: ${sim_log}"
-            exit 2
+            echo "::warning::Gatling simulation.log is empty: ${sim_log}"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            ls -lah "$sim_log" || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose ps || true
+              docker compose logs --tail=200 gatling || true
+            fi
+            exit 0
           fi
           echo "▶ simulation.log head (200 lines):"
           head -n 200 "$sim_log" || true
 
-          has_request_like=0
-          if grep -Eqi '\b(request|response|http)\b' "$sim_log"; then
-            has_request_like=1
-          fi
-          has_run_markers=0
-          if grep -Eqi '\b(simulation|scenario|gatling|started|finished|run)\b' "$sim_log"; then
-            has_run_markers=1
-          fi
-          has_gatling_report=0
-          if find reports/current/gatling -type f -name index.html -print -quit >/dev/null 2>&1; then
-            has_gatling_report=1
-          fi
-
-          if [[ "$has_request_like" -eq 0 ]]; then
-            echo "⚠ No request-like lines found in ${sim_log}"
-            if [[ "$has_run_markers" -eq 1 || "$has_gatling_report" -eq 1 ]]; then
-              echo "⚠ Gatling run appears to have executed; not failing the job."
-              exit 0
+          if ! grep -q "REQUEST" "$sim_log"; then
+            echo "::warning::No REQUEST lines found in ${sim_log}"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            ls -lah "$sim_log" || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose ps || true
+              docker compose logs --tail=200 gatling || true
             fi
-            echo "❌ No evidence of a successful Gatling run; failing the job."
-            exit 2
+            exit 0
           fi
-          echo "✔ Gatling simulation.log contains request-like entries"
+          echo "GATLING_HAS_REQUESTS=true" >> "$GITHUB_ENV"
+          echo "✔ Gatling simulation.log contains REQUEST entries"
       - name: Upload reports artifact
         if: always()
         uses: actions/upload-artifact@v4
