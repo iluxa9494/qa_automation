@@ -166,6 +166,22 @@ copy_if_exists "/reports/gatling/latest" "${RUN_DIR}/gatling/latest"
 
 # Ensure /reports/gatling/latest exists (copy newest index.html folder if needed)
 if [[ -d "/reports/gatling" && ! -d "/reports/gatling/latest" ]]; then
+  echo "▶ Gatling perms diagnostics (pre-latest):"
+  id || true
+  ls -la "/reports/gatling" || true
+  if [[ -e "/reports/gatling/latest" ]]; then
+    stat -c '%u:%g %a %n' "/reports/gatling/latest" || true
+  fi
+  find "/reports/gatling" -maxdepth 2 -printf '%u:%g %m %p\n' 2>/dev/null || true
+
+  if [[ "$(id -u)" == "0" ]]; then
+    owner_uid_gid="$(stat -c '%u:%g' "/reports" 2>/dev/null || true)"
+    if [[ -n "${owner_uid_gid}" ]]; then
+      chown -R "${owner_uid_gid}" "/reports/gatling" || true
+    fi
+  fi
+  chmod -R u+rwX "/reports/gatling" || true
+
   latest_dir="$(
     find "/reports/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
       | sort -nr \
@@ -173,6 +189,13 @@ if [[ -d "/reports/gatling" && ! -d "/reports/gatling/latest" ]]; then
       | awk '{ $1=""; sub(/^ /,""); print }'
   )"
   if [[ -n "${latest_dir:-}" ]]; then
+    if [[ "$(id -u)" == "0" ]]; then
+      owner_uid_gid="$(stat -c '%u:%g' "/reports" 2>/dev/null || true)"
+      if [[ -n "${owner_uid_gid}" ]]; then
+        chown -R "${owner_uid_gid}" "/reports/gatling" || true
+      fi
+    fi
+    chmod -R u+rwX "/reports/gatling" || true
     rm -rf "/reports/gatling/latest" || true
     cp -a "${latest_dir%/}" "/reports/gatling/latest"
     echo "✔ Gatling latest resolved: ${latest_dir}"

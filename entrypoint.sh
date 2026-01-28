@@ -67,6 +67,22 @@ echo "▶ Suites finished: formy=${rc_formy}, db=${rc_db}, gatling=${rc_gatling}
 
 # Ensure gatling/latest exists if Gatling produced target reports under /reports/gatling/<timestamp>/
 if [[ -d "${REPORTS_DIR}/gatling" ]]; then
+  echo "▶ Gatling perms diagnostics (pre-latest):"
+  id || true
+  ls -la "${REPORTS_DIR}/gatling" || true
+  if [[ -e "${REPORTS_DIR}/gatling/latest" ]]; then
+    stat -c '%u:%g %a %n' "${REPORTS_DIR}/gatling/latest" || true
+  fi
+  find "${REPORTS_DIR}/gatling" -maxdepth 2 -printf '%u:%g %m %p\n' 2>/dev/null || true
+
+  if [[ "$(id -u)" == "0" ]]; then
+    owner_uid_gid="$(stat -c '%u:%g' "${REPORTS_DIR}" 2>/dev/null || true)"
+    if [[ -n "${owner_uid_gid}" ]]; then
+      chown -R "${owner_uid_gid}" "${REPORTS_DIR}/gatling" || true
+    fi
+  fi
+  chmod -R u+rwX "${REPORTS_DIR}/gatling" || true
+
   latest_dir="$(
     find "${REPORTS_DIR}/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
       | sort -nr \
@@ -74,6 +90,13 @@ if [[ -d "${REPORTS_DIR}/gatling" ]]; then
       | awk '{ $1=""; sub(/^ /,""); print }'
   )"
   if [[ -n "${latest_dir:-}" ]]; then
+    if [[ "$(id -u)" == "0" ]]; then
+      owner_uid_gid="$(stat -c '%u:%g' "${REPORTS_DIR}" 2>/dev/null || true)"
+      if [[ -n "${owner_uid_gid}" ]]; then
+        chown -R "${owner_uid_gid}" "${REPORTS_DIR}/gatling" || true
+      fi
+    fi
+    chmod -R u+rwX "${REPORTS_DIR}/gatling" || true
     rm -rf "${REPORTS_DIR}/gatling/latest" || true
     cp -a "${latest_dir%/}" "${REPORTS_DIR}/gatling/latest"
     echo "✔ Gatling latest resolved: ${latest_dir}"

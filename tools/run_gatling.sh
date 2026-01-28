@@ -35,6 +35,25 @@ echo "▶ [gatling] DEPS_DIR=${DEPS_DIR}"
 echo "▶ [gatling] CP=${CP}"
 echo "▶ [gatling] REPORT_DIR=${REPORT_DIR}"
 
+# ---- permissions diagnostics + normalization (before latest update) ----
+echo "▶ [gatling] Perms diagnostics (pre-latest):"
+id || true
+ls -la "${REPORT_DIR}" || true
+if [[ -e "${REPORT_DIR}/latest" ]]; then
+  stat -c '%u:%g %a %n' "${REPORT_DIR}/latest" || true
+fi
+find "${REPORT_DIR}" -maxdepth 2 -printf '%u:%g %m %p\n' 2>/dev/null || true
+
+# Normalize ownership to parent reports dir (only if running as root)
+if [[ "$(id -u)" == "0" ]]; then
+  reports_root="${REPORTS_DIR:-/reports}"
+  owner_uid_gid="$(stat -c '%u:%g' "${reports_root}" 2>/dev/null || true)"
+  if [[ -n "${owner_uid_gid}" ]]; then
+    chown -R "${owner_uid_gid}" "${REPORT_DIR}" || true
+  fi
+fi
+chmod -R u+rwX "${REPORT_DIR}" || true
+
 # ✅ CI-safe параметры (можно переопределить env-ом из compose/CI)
 G_USERS="${GATLING_CI_USERS_PER_SEC:-5}"
 G_DUR="${GATLING_CI_DURATION_SEC:-30}"
@@ -65,6 +84,15 @@ latest_report_dir="$(
 )"
 
 if [[ -n "${latest_report_dir}" ]]; then
+  # Re-check after run (reports might be created as a different UID/GID)
+  if [[ "$(id -u)" == "0" ]]; then
+    reports_root="${REPORTS_DIR:-/reports}"
+    owner_uid_gid="$(stat -c '%u:%g' "${reports_root}" 2>/dev/null || true)"
+    if [[ -n "${owner_uid_gid}" ]]; then
+      chown -R "${owner_uid_gid}" "${REPORT_DIR}" || true
+    fi
+  fi
+  chmod -R u+rwX "${REPORT_DIR}" || true
   rm -rf "${REPORT_DIR}/latest" || true
   cp -a "${latest_report_dir}" "${REPORT_DIR}/latest"
   echo "✔ [gatling] latest -> ${latest_report_dir}"
