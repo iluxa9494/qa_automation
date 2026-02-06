@@ -95,7 +95,8 @@ jobs:
           echo "▶ Running qa_automation..."
           set +e
           # Hard timeout to avoid multi-hour hangs on retries/timeouts inside suites.
-          timeout 30m docker compose -f docker-compose.ci.yml up \
+          # 75m keeps us under the job timeout (90m) but avoids cutting off report generation.
+          timeout 75m docker compose -f docker-compose.ci.yml up \
             --pull never \
             --no-deps \
             --abort-on-container-exit \
@@ -173,6 +174,25 @@ jobs:
           set -euo pipefail
           if [[ -d reports/gatling ]]; then
             find reports/gatling -type l -print -delete || true
+          fi
+
+      - name: Generate Allure HTML (fallback)
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+          if [[ -d reports/allure-results ]]; then
+            if [[ ! -f reports/allure-report/index.html ]]; then
+              echo "▶ Allure HTML missing; generating via container..."
+              mkdir -p reports/allure-report
+              docker run --rm -v "$PWD/reports:/reports" "$QA_AUTOMATION_IMAGE" bash -lc '
+                set -euo pipefail
+                allure generate /reports/allure-results/formy /reports/allure-results/databaseUsage -o /reports/allure-report --clean
+              '
+            else
+              echo "✔ Allure HTML already exists"
+            fi
+          else
+            echo "⚠️ reports/allure-results missing; cannot generate Allure HTML"
           fi
 
       - name: Materialize versioned reports layout
@@ -444,12 +464,9 @@ jobs:
             exit 4
           fi
 
-          GATLING_OK="${GATLING_OK:-false}"
-          ALLURE_REPORT_OK="${ALLURE_REPORT_OK:-false}"
-          PUBLISH_OK=0
-          if [[ "$GATLING_OK" == "true" && "$ALLURE_REPORT_OK" == "true" ]]; then
-            PUBLISH_OK=1
-          fi
+          # Always update LATEST/current pointers even if some reports are missing.
+          # Individual report symlinks are updated only when the report exists.
+          PUBLISH_OK=1
 
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
@@ -518,12 +535,6 @@ jobs:
               fi
             else
               echo \"⚠ Gatling index.html not found under \$SRC/gatling\"
-            fi
-
-            if [ \"\$PUBLISH_OK\" != \"1\" ] || [ \"\$HAS_ALLURE\" != \"1\" ] || [ \"\$HAS_GATLING\" != \"1\" ]; then
-              echo \"⚠ Reports incomplete; not updating LATEST/current pointers\"
-              echo \"▶ PUBLISH_OK=\$PUBLISH_OK, HAS_ALLURE=\$HAS_ALLURE, HAS_GATLING=\$HAS_GATLING\"
-              exit 0
             fi
 
             # Ensure gatling/latest exists inside run
