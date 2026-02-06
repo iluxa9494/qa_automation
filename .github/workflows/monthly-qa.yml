@@ -571,13 +571,15 @@ jobs:
 
             CONTAINER_UID=1200
             CONTAINER_GID=1201
-            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$BASE\" || true
-            find \"\$BASE\" -type d -exec chmod 2775 {} \; || true
-            find \"\$BASE\" -type f -exec chmod 664  {} \; || true
+            # Apply perms only to the new run directory to avoid heavy recursive ops on the whole reports tree
+            TARGET_RUN=\"\$BASE/runs/\$RUN_ID\"
+            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$TARGET_RUN\" || true
+            find \"\$TARGET_RUN\" -type d -exec chmod 2775 {} \; || true
+            find \"\$TARGET_RUN\" -type f -exec chmod 664  {} \; || true
 
             if command -v setfacl >/dev/null 2>&1; then
-              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
-              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$BASE\" || true
+              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$TARGET_RUN\" || true
+              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$TARGET_RUN\" || true
             fi
 
             echo \"✅ Published pointers for \$RUN_ID\"
