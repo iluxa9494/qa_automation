@@ -475,7 +475,10 @@ jobs:
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
           echo "▶ Uploading reports via tar over SSH (no rsync dependency)..."
-          tar -C "$SRC_RUN" -czf /tmp/reports_run.tgz "${include_dirs[@]}"
+          # Follow symlinks to avoid uploading only link stubs
+          tar -C "$SRC_RUN" -czf /tmp/reports_run.tgz --dereference "${include_dirs[@]}"
+          echo "▶ tar content (head):"
+          tar -tzf /tmp/reports_run.tgz | head -n 50 || true
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "tar -C /home/pet_projects/qa_automation/reports/runs/${RUN_ID} -xzf -" < /tmp/reports_run.tgz
           rm -f /tmp/reports_run.tgz
@@ -578,6 +581,14 @@ jobs:
             fi
 
             echo \"✅ Published pointers for \$RUN_ID\"
+
+            echo \"▶ Post-sync quick size check:\"
+            du -sh \"\$BASE/runs/\$RUN_ID/allure-report\" \"\$BASE/runs/\$RUN_ID/gatling/latest\" 2>/dev/null || true
+            if [ -f \"\$BASE/runs/\$RUN_ID/gatling/latest/js/stats.json\" ]; then
+              echo \"✔ Gatling stats.json present\"
+            else
+              echo \"⚠ Gatling stats.json missing\"
+            fi
           "
 
       - name: Finalize (do not fail on test failures)
