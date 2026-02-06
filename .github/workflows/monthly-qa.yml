@@ -591,6 +591,13 @@ jobs:
             else
               echo \"⚠ Gatling stats.json missing\"
             fi
+
+            echo \"▶ Cleanup old runs (best-effort)\"
+            if [ -x \"/home/pet_projects/qa_automation/cleanup_runs.sh\" ]; then
+              KEEP_LAST=10 KEEP_DAYS=60 /home/pet_projects/qa_automation/cleanup_runs.sh || true
+            else
+              echo \"cleanup_runs.sh not found; skipping cleanup\"
+            fi
           "
 
       - name: Finalize (do not fail on test failures)
