@@ -17,8 +17,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    # ✅ чуть ограничим, чтобы не выедал весь раннер
-    mem_limit: 1g
 
   mongodb:
     image: mongo:6
@@ -30,7 +28,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    mem_limit: 768m
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
@@ -40,8 +37,6 @@ services:
       CI: "true"
       REPORTS_DIR: /reports
       ALLURE_RESULTS_DIR: /reports/allure-results
-      # ✅ лимитируем JVM (общий для java в контейнере)
-      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1024m -XX:MaxMetaspaceSize=256m"
       # ✅ CI: базы живут как сервисы docker-compose (не localhost)
       MONGO_URI: "mongodb://mongodb:27017"
       MYSQL_URL: "jdbc:mysql://mysql:3306/test"
@@ -62,4 +57,3 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-    mem_limit: 2g
