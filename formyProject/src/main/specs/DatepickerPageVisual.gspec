@@ -1,0 +1,40 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    datepickerInput                 id              datepicker
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpDatepicker/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above datepickerInput 80 px
+
+    logo:
+        image file pagedumpDatepicker/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpDatepicker/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpDatepicker/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpDatepicker/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above datepickerInput 8 px
+        css box-sizing is "border-box"
+
+    datepickerInput:
+        visible
+        image file pagedumpDatepicker/objects/datepickerInput.png, error 1%
+        below pageTitle 8 px
+        css box-sizing is "border-box"

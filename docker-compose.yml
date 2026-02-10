@@ -1,0 +1,105 @@
+networks:
+  qa-net:
+    driver: bridge
+
+services:
+  formy-tests:
+    build:
+      context: .
+      args:
+        SELENIUM_BASE_IMAGE: ${SELENIUM_BASE_IMAGE:-seleniarm/standalone-chromium:latest}
+    image: qa-tests
+    container_name: qa-formy-tests
+    networks: [qa-net]
+    shm_size: "2gb"
+    environment:
+      FORMY_BASE_URL: ${FORMY_BASE_URL:-https://formy-project.herokuapp.com}
+      DISPLAY: ":99"
+      CHROMEDRIVER_PATH: "/usr/bin/chromedriver"
+    command: >
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/formy/cucumber-html-report /reports/formy/surefire;
+        Xvfb :99 -screen 0 1920x1080x24 >/dev/null 2>&1 &
+        cd /app/formyProject;
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/formy/cucumber.json,html:/reports/formy/cucumber-html-report'
+          -Dsurefire.reportsDirectory=/reports/formy/surefire
+      "
+    restart: "no"
+
+  mongo:
+    image: mongo:7
+    container_name: qa-mongo
+    networks: [qa-net]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017/admin", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mysql:
+    image: mysql:8.0
+    container_name: qa-mysql
+    networks: [qa-net]
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+    tmpfs:
+      - /var/lib/mysql
+    volumes:
+      - ./databaseUsage/src/test/resources/mysql/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  database-tests:
+    image: qa-tests
+    container_name: qa-database-tests
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    networks: [qa-net]
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MYSQL_URL: jdbc:mysql://mysql:3306/test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
+    command: >
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/databaseUsage /reports/databaseUsage/surefire;
+        cd /app/databaseUsage;
+        mvn -B test
+          -Dcucumber.plugin='json:/reports/databaseUsage/cucumber.json,html:/reports/databaseUsage/cucumber.html'
+          -Dsurefire.reportsDirectory=/reports/databaseUsage/surefire
+      "
+    restart: "no"
+
+  restfulbooker-load:
+    image: qa-tests
+    container_name: qa-gatling-restfulbooker
+    networks: [qa-net]
+    environment:
+      RESTFUL_BOOKER_BASE_URL: ${RESTFUL_BOOKER_BASE_URL:-https://restful-booker.herokuapp.com}
+    command: >
+      bash -lc "
+        set -euo pipefail;
+        mkdir -p /reports/gatling;
+        cd /app/restfulBookerLoad;
+        mvn -B gatling:test -Dgatling.resultsFolder=/reports/gatling;
+
+        LAST_DIR=\"$$(ls -1dt /reports/gatling/*/ 2>/dev/null | head -n 1 || true)\";
+        if [[ -n \"$$LAST_DIR\" ]]; then
+          rm -rf /reports/gatling/latest;
+          mkdir -p /reports/gatling/latest;
+          cp -a \"$${LAST_DIR%/}\"/. /reports/gatling/latest/;
+        fi
+      "
+    restart: "no"

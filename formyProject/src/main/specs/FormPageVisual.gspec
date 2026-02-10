@@ -1,0 +1,156 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    firstNameTitle                  xpath           //label[text()='First name']
+    firstNameInput                  id              first-name
+    lastNameTitle                   xpath           //label[text()='Last name']
+    lastNameInput                   id              last-name
+    jobTitle                        xpath           //label[text()='Job title']
+    jobInput                        id              job-title
+    highestLevelOfEducationTitle    xpath           //label[text()='Highest level of education']
+    highSchoolRadioButton           id              radio-button-1
+    collegeRadioButton              id              radio-button-2
+    gradSchoolRadioButton           id              radio-button-3
+    sexTitle                        xpath           //label[text()='Sex']
+    maleCheckbox                    id              checkbox-1
+    femaleCheckbox                  id              checkbox-2
+    preferNotToSayCheckbox          id              checkbox-3
+    yearsOfExperienceTitle          xpath           //label[text()='Years of experience:']
+    yearsOfExperienceSelector       id              select-menu
+    dateTitle                       xpath           //label[text()='Date']
+    dateInput                       id              datepicker
+    submitButton                    xpath           //a[text()='Submit']
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpForm/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above firstNameTitle 80 px
+        above firstNameInput 112 px
+        above lastNameTitle 174 px
+        above lastNameInput 206 px
+        above jobTitle 268 px
+        above jobInput 300 px
+        above highestLevelOfEducationTitle 362 px
+        above highSchoolRadioButton 399 px
+        above collegeRadioButton 423 px
+        above gradSchoolRadioButton 447 px
+        above sexTitle 490 px
+        above maleCheckbox 527 px
+        above femaleCheckbox 551 px
+        above preferNotToSayCheckbox 575 px
+        above yearsOfExperienceTitle 618 px
+        above yearsOfExperienceSelector 650 px
+        above dateTitle 712 px
+        above dateInput 744 px
+        above submitButton 806 px
+
+    logo:
+        image file pagedumpForm/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpForm/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpForm/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpForm/objects/pageTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    firstNameTitle:
+        visible
+        image file pagedumpForm/objects/firstNameTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    firstNameInput:
+        visible
+        image file pagedumpForm/objects/firstNameInput.png, error 1%
+        css box-sizing is "border-box"
+
+    lastNameTitle:
+        visible
+        image file pagedumpForm/objects/lastNameTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    lastNameInput:
+        visible
+        image file pagedumpForm/objects/lastNameInput.png, error 1%
+        css box-sizing is "border-box"
+
+    jobTitle:
+        visible
+        image file pagedumpForm/objects/jobTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    jobInput:
+        visible
+        image file pagedumpForm/objects/jobInput.png, error 1%
+        css box-sizing is "border-box"
+
+    highestLevelOfEducationTitle:
+        visible
+        image file pagedumpForm/objects/highestLevelOfEducationTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    highSchoolRadioButton:
+        visible
+        image file pagedumpForm/objects/highSchoolRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    collegeRadioButton:
+        visible
+        image file pagedumpForm/objects/collegeRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    gradSchoolRadioButton:
+        visible
+        image file pagedumpForm/objects/gradSchoolRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    sexTitle:
+        visible
+        image file pagedumpForm/objects/sexTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    maleCheckbox:
+        visible
+        image file pagedumpForm/objects/maleCheckbox.png, error 1%
+        css box-sizing is "border-box"
+
+    femaleCheckbox:
+        visible
+        css box-sizing is "border-box"
+
+    preferNotToSayCheckbox:
+        visible
+        css box-sizing is "border-box"
+
+    yearsOfExperienceTitle:
+        visible
+        css box-sizing is "border-box"
+
+    yearsOfExperienceSelector:
+        visible
+        css box-sizing is "border-box"
+
+    dateTitle:
+        visible
+        css box-sizing is "border-box"
+
+    dateInput:
+        visible
+        css box-sizing is "border-box"
+
+    submitButton:
+        visible
+        css box-sizing is "border-box"

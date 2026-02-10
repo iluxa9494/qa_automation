@@ -1,0 +1,155 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    secondTitle                     xpath           //p[1]
+    horizontalLine                  xpath           //hr
+    thirdTitle                      xpath           //p[2]
+    autocompleteList                xpath           //li/a[text()='Autocomplete']
+    buttonsList                     xpath           //li/a[text()='Buttons']
+    checkboxList                    xpath           //li/a[text()='Checkbox']
+    datepickerList                  xpath           //li/a[text()='Datepicker']
+    dragAndDropList                 xpath           //li/a[text()='Drag and Drop']
+    dropdownList                    xpath           //li/a[text()='Dropdown']
+    enabledList                     xpath           //li/a[text()='Enabled and disabled elements']
+    fileUploadList                  xpath           //li/a[text()='File Upload']
+    keyAndMouseList                 xpath           //li/a[text()='Key and Mouse Press']
+    modalList                       xpath           //li/a[text()='Modal']
+    pageScrollList                  xpath           //li/a[text()='Page Scroll']
+    radioButtonList                 xpath           //li/a[text()='Radio Button']
+    switchWindowList                xpath           //li/a[text()='Switch Window']
+    completeWebFormList             xpath           //li/a[text()='Complete Web Form']
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpWelcome/objects/navbar.png, error 1%
+        above pageTitle 0 px
+        above secondTitle 94 px
+        above horizontalLine 148 px
+        above thirdTitle 173 px
+        above autocompleteList 213 px
+        above buttonsList 261 px
+        above checkboxList 309 px
+        above datepickerList 357 px
+        above dragAndDropList 405 px
+        above dropdownList 453 px
+        above enabledList 501 px
+        above fileUploadList 549 px
+        above keyAndMouseList 597 px
+        above modalList 645 px
+        above pageScrollList 693 px
+        above radioButtonList 741 px
+        above switchWindowList 789 px
+        above completeWebFormList 837 px
+
+    logo:
+        image file pagedumpWelcome/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpWelcome/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpWelcome/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpWelcome/objects/pageTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    secondTitle:
+        visible
+        image file pagedumpWelcome/objects/secondTitle.png, error 5%
+        css box-sizing is "border-box"
+
+    thirdTitle:
+        visible
+        image file pagedumpWelcome/objects/thirdTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    horizontalLine:
+        visible
+        image file pagedumpWelcome/objects/horizontalLine.png, error 5%
+
+    autocompleteList:
+        visible
+        image file pagedumpWelcome/objects/autocompleteList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    buttonsList:
+        visible
+        image file pagedumpWelcome/objects/buttonsList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    checkboxList:
+        visible
+        image file pagedumpWelcome/objects/checkboxList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    datepickerList:
+        visible
+        image file pagedumpWelcome/objects/datepickerList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    dragAndDropList:
+        visible
+        image file pagedumpWelcome/objects/dragAndDropList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    dropdownList:
+        visible
+        image file pagedumpWelcome/objects/dropdownList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    enabledList:
+        visible
+        image file pagedumpWelcome/objects/enabledList.png, error 1%
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    fileUploadList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    keyAndMouseList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    modalList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    pageScrollList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    radioButtonList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    switchWindowList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"
+
+    completeWebFormList:
+        visible
+        css box-sizing is "border-box"
+        css cursor is "pointer"

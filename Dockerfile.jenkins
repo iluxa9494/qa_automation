@@ -1,0 +1,33 @@
+FROM jenkins/jenkins:lts
+
+USER root
+
+# docker CLI + docker-compose (v2 пакет в Debian)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      docker-cli docker-compose ca-certificates curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# entrypoint, который подхватывает GID docker.sock и добавляет jenkins в нужную группу
+RUN tee /usr/local/bin/jenkins-with-docker.sh >/dev/null <<'SH' && chmod +x /usr/local/bin/jenkins-with-docker.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOCK=/var/run/docker.sock
+if [[ -S "$SOCK" ]]; then
+  GID="$(stat -c %g "$SOCK")"
+  if ! getent group "$GID" >/dev/null; then
+    groupadd -g "$GID" dockerhost || true
+  fi
+  # добавить jenkins в группу с GID сокета (на mac часто GID=0)
+  usermod -aG "$GID" jenkins || true
+fi
+
+exec /usr/local/bin/jenkins.sh
+SH
+
+# CSP отключаем (ты это хотел) — можно оставить
+ENV JAVA_OPTS="-Dhudson.model.DirectoryBrowserSupport.CSP="
+
+USER root
+ENTRYPOINT ["/usr/local/bin/jenkins-with-docker.sh"]

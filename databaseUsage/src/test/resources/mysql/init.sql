@@ -1,0 +1,10 @@
+CREATE DATABASE IF NOT EXISTS test;
+USE test;
+
+CREATE TABLE IF NOT EXISTS city (
+  ID INT PRIMARY KEY,
+  Name VARCHAR(255),
+  CountryCode VARCHAR(3),
+  District VARCHAR(255),
+  Population INT
+);

@@ -1,0 +1,155 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    addressTitle                    xpath           //label[@for='autocomplete']
+    streetAddressTitle              xpath           //label[text()='Street address']
+    streetAddress2Title             xpath           //label[text()='Street address 2']
+    cityTitle                       xpath           //label[text()='City']
+    stateTitle                      xpath           //label[text()='State']
+    zipCodeTitle                    xpath           //label[text()='Zip code']
+    countryTitle                    xpath           //label[text()='Country']
+    addressInput                    id              autocomplete
+    streetAddressInput              id              street_number
+    streetAddress2Input             id              route
+    cityInput                       id              locality
+    stateInput                      id              administrative_area_level_1
+    zipCodeInput                    id              postal_code
+    countryInput                    id              country
+
+= Header =
+    navbar:
+        image file pagedumpAutocomplete/objects/navbar.png, error 1%
+        above pageTitle 20 to 25 px
+        above addressTitle 80 px
+        above addressInput 112 px
+        above streetAddressTitle 150 px
+        above streetAddressInput 182 px
+        above streetAddress2Title 220 px
+        above streetAddress2Input 252 px
+        above cityTitle 290 px
+        above cityInput 322 px
+        above stateTitle 360 px
+        above stateInput 392 px
+        above zipCodeTitle 430 px
+        above zipCodeInput 462 px
+        above countryTitle 500 px
+        above countryInput 532 px
+
+    logo:
+        image file pagedumpAutocomplete/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpAutocomplete/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpAutocomplete/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpAutocomplete/objects/pageTitle.png, error 1%
+        above addressTitle 8 px
+        above addressInput 40 px
+        above streetAddressTitle 78 px
+        above streetAddressInput 110 px
+        above streetAddress2Title 148 px
+        above streetAddress2Input 180 px
+        above cityTitle 218 px
+        above cityInput 250 px
+        above stateTitle 288 px
+        above stateInput 320 px
+        above zipCodeTitle 358 px
+        above zipCodeInput 390 px
+        above countryTitle 428 px
+        above countryInput 460 px
+        css font-weight is "500"
+
+    addressTitle:
+        visible
+        image file pagedumpAutocomplete/objects/addressTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    addressInput:
+        visible
+        image file pagedumpAutocomplete/objects/addressInput.png, error 1%
+        css animation-name is "endBrowserAutofill"
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    streetAddressTitle:
+        visible
+        image file pagedumpAutocomplete/objects/streetAddressTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    streetAddressInput:
+        visible
+        image file pagedumpAutocomplete/objects/streetAddressInput.png, error 1%
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    streetAddress2Title:
+        visible
+        image file pagedumpAutocomplete/objects/streetAddress2Title.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    streetAddress2Input:
+        visible
+        image file pagedumpAutocomplete/objects/streetAddress2Input.png, error 1%
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    cityTitle:
+        visible
+        image file pagedumpAutocomplete/objects/cityTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    cityInput :
+        visible
+        image file pagedumpAutocomplete/objects/cityInput.png, error 1%
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    stateTitle:
+        visible
+        image file pagedumpAutocomplete/objects/stateTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    stateInput:
+        visible
+        image file pagedumpAutocomplete/objects/stateInput.png, error 1%
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    zipCodeTitle:
+        visible
+        image file pagedumpAutocomplete/objects/zipCodeTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    zipCodeInput:
+        visible
+        image file pagedumpAutocomplete/objects/zipCodeInput.png, error 1%
+        css overflow is "visible"
+        css box-sizing is "border-box"
+
+    countryTitle:
+        visible
+        image file pagedumpAutocomplete/objects/countryTitle.png, error 1%
+        css display is "inline-block"
+        css box-sizing is "border-box"
+
+    countryInput:
+        visible
+        css overflow is "visible"
+        css box-sizing is "border-box"

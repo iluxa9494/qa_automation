@@ -1,0 +1,71 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageScroll                      xpath           //h1
+    firstRadioButton                id              radio-button-1
+    firstRadioButtonTitle           xpath           //label[@for='radio-button-1']
+    secondRadioButton               xpath           //input[@value='option2']
+    secondRadioButtonTitle          xpath           //label[@for='radio-button-2']
+    thirdRadioButton                xpath           //input[@value='option3']
+    thirdRadioButtonTitle           xpath           //label[@for='radio-button-3']
+    container                       xpath           //div[@class='container']
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpRadioButton/objects/navbar.png, error 1%
+
+    logo:
+        image file pagedumpRadioButton/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpRadioButton/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpRadioButton/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageScroll:
+        visible
+        image file pagedumpRadioButton/objects/pageScroll.png, error 1%
+        css box-sizing is "border-box"
+
+    firstRadioButton:
+        visible
+        image file pagedumpRadioButton/objects/firstRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    firstRadioButtonTitle:
+        visible
+        image file pagedumpRadioButton/objects/firstRadioButtonTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    secondRadioButton:
+        visible
+        image file pagedumpRadioButton/objects/secondRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    secondRadioButtonTitle:
+        visible
+        image file pagedumpRadioButton/objects/secondRadioButtonTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    thirdRadioButton:
+        visible
+        image file pagedumpRadioButton/objects/thirdRadioButton.png, error 1%
+        css box-sizing is "border-box"
+
+    thirdRadioButtonTitle:
+        visible
+        image file pagedumpRadioButton/objects/thirdRadioButtonTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    container:
+        visible
+        image file pagedumpRadioButton/objects/container.png, error 1%
+        css box-sizing is "border-box"

@@ -1,0 +1,62 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    chooseButton                    xpath           //button[text()='Choose']
+    fileInput                       id              file-upload-field
+    resetButton                     xpath           //button[text()='Reset']
+
+= Header =
+    navbar:
+        visible
+        image file pagedumpFileUpload/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above chooseButton 107 px
+        above fileInput 107 px
+        above resetButton 107 px
+
+    logo:
+        image file pagedumpFileUpload/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpFileUpload/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpFileUpload/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpFileUpload/objects/pageTitle.png, error 1%
+        below navbar 24 px
+        above chooseButton 35 px
+        above fileInput 35 px
+        above resetButton 35 px
+        css box-sizing is "border-box"
+
+    chooseButton:
+        visible
+        image file pagedumpFileUpload/objects/chooseButton.png, error 1%
+        below pageTitle 35 px
+        left-of fileInput 14 px
+        css box-sizing is "border-box"
+
+    fileInput:
+        visible
+        image file pagedumpFileUpload/objects/fileInput.png, error 1%
+        below pageTitle 35 px
+        left-of resetButton 15 px
+        right-of chooseButton 14 px
+        css box-sizing is "border-box"
+
+    resetButton:
+        visible
+        image file pagedumpFileUpload/objects/resetButton.png, error 1%
+        below pageTitle 35 px
+        right-of fileInput 15 px
+        css box-sizing is "border-box"

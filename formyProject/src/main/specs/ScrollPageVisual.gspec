@@ -1,0 +1,105 @@
+@import NavigationBar.gspec
+@objects
+#header
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+#body
+    pageTitle                       xpath           //h1
+    firstParagraph                  xpath           //p[1]
+    secondParagraph                 xpath           //p[2]
+    thirdParagraph                  xpath           //p[3]
+    fourthParagraph                 xpath           //p[4]
+    fifthParagraph                  xpath           //p[5]
+    sixthParagraph                  xpath           //p[6]
+    seventhParagraph                xpath           //p[7]
+    eighthParagraph                 xpath           //p[8]
+    fullNameTitle                   xpath           //label[text()='Full Name']
+    fullNameInput                   id              name
+    dateTitle                       xpath           //label[text()='Date']
+    dateInput                       id              date
+
+= Header =
+    navbar:
+        image file pagedumpScroll/objects/navbar.png, error 1%
+        above pageTitle 24 px
+        above firstParagraph 80 px
+        above secondParagraph 168 px
+        above thirdParagraph 256 px
+        above fourthParagraph 344 px
+        above fifthParagraph 504 px
+        above sixthParagraph 664 px
+        above seventhParagraph 776 px
+        above eighthParagraph 888 px
+        above fullNameTitle 992 px
+        above fullNameInput 1024 px
+        above dateTitle 992 px
+        above dateInput 1024 px
+
+    logo:
+        image file pagedumpScroll/objects/logo.png, error 1%
+
+    formNav:
+        image file pagedumpScroll/objects/formNav.png, error 1%
+
+    componentsDropdown:
+        image file pagedumpScroll/objects/componentsDropdown.png, error 1%
+
+= Body =
+    pageTitle:
+        visible
+        image file pagedumpScroll/objects/pageTitle.png, error 1%
+        css box-sizing is "border-box"
+
+    firstParagraph:
+        visible
+        image file pagedumpScroll/objects/firstParagraph.png, error 1%
+        css box-sizing is "border-box"
+
+    secondParagraph:
+        visible
+        image file pagedumpScroll/objects/secondParagraph.png, error 1%
+        css box-sizing is "border-box"
+
+    thirdParagraph:
+        visible
+        image file pagedumpScroll/objects/thirdParagraph.png, error 1%
+        css box-sizing is "border-box"
+
+    fourthParagraph:
+        visible
+        image file pagedumpScroll/objects/fourthParagraph.png, error 1%
+        css box-sizing is "border-box"
+
+    fifthParagraph:
+        visible
+        css box-sizing is "border-box"
+
+    sixthParagraph:
+        visible
+        css box-sizing is "border-box"
+
+    seventhParagraph:
+        visible
+        css box-sizing is "border-box"
+
+    eighthParagraph:
+        visible
+        css box-sizing is "border-box"
+
+    fullNameTitle:
+        visible
+        css box-sizing is "border-box"
+
+    fullNameInput:
+        visible
+        css box-sizing is "border-box"
+
+    dateTitle:
+        visible
+        css box-sizing is "border-box"
+
+    dateInput:
+        visible
+        css box-sizing is "border-box"

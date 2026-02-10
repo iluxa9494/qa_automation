@@ -1,0 +1,10 @@
+{
+  "id": "qa_automation",
+  "name": "QA Automation Summary",
+  "meta": {"generatedAt": "2025-12-13T13:40:56.011588Z"},
+  "items": [
+    {"id": "ui_formy", "name": "UI tests (Formy)", "result": {"passed": 0, "failed": 0, "skipped": 0, "total": 0}},
+    {"id": "db_tests", "name": "DB tests", "result": {"passed": 0, "failed": 0, "skipped": 0, "total": 0}},
+    {"id": "gatling", "name": "Load tests (Gatling)", "result": {"ok": 13055, "ko": 0, "total": 13055}}
+  ]
+}

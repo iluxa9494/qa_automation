@@ -1,0 +1,41 @@
+@objects
+    navbar                          xpath           //nav[@class='navbar navbar-expand-lg bg-light']
+    logo                            id              logo
+    formNav                         xpath           //a[@class="nav-link"]
+    componentsDropdown              xpath           //a[@class="nav-link dropdown-toggle"]
+
+= Header for all pages =
+    navbar:
+        visible
+        width > 85 % of screen/width
+        height 86px
+        inside screen 0 px top
+        css justify-content contains "flex-start"
+        css position is "relative"
+        css display is "flex"
+        css align-items is "center"
+        css align-items is "center"
+        css box-sizing is "border-box"
+        css flex-direction is "row"
+        css flex-wrap is "nowrap"
+        css font-size is "16px"
+        css font-weight is "400"
+        css line-height is "24px"
+        css justify-content is "flex-start"
+        css text-align is "left"
+        css text-size-adjust is "100%"
+
+    logo:
+        visible
+        css text-transform is "uppercase"
+        css letter-spacing is "-1px"
+
+    formNav:
+        visible
+        css display is "block"
+        css cursor is "pointer"
+
+    componentsDropdown:
+        visible
+        css display is "block"
+        css cursor is "pointer"
