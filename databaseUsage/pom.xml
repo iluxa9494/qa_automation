@@ -20,6 +20,9 @@
 
         <jackson.version>2.17.2</jackson.version>
 
+        <!-- ✅ Allure -->
+        <allure.version>2.29.0</allure.version>
+
         <maven.surefire.version>3.2.5</maven.surefire.version>
         <maven.compiler.version>3.13.0</maven.compiler.version>
         <exec.maven.plugin.version>3.3.0</exec.maven.plugin.version>
@@ -41,6 +44,13 @@
             <groupId>io.cucumber</groupId>
             <artifactId>datatable</artifactId>
             <version>${cucumber.datatable.version}</version>
+        </dependency>
+
+        <!-- ✅ Allure adapter for Cucumber 6 -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber6-jvm</artifactId>
+            <version>${allure.version}</version>
         </dependency>
 
         <!-- JUnit 4 -->
@@ -110,13 +120,12 @@
                 </configuration>
             </plugin>
 
-            <!-- ✅ Exec Maven Plugin (запуск генератора) -->
+            <!-- Exec Maven Plugin (если используешь генератор) -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.maven.plugin.version}</version>
                 <configuration>
-                    <!-- Генератор лежит в src/test/java -->
                     <classpathScope>test</classpathScope>
                     <mainClass>tools.NestedReportGenerator</mainClass>
                 </configuration>

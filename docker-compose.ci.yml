@@ -1,0 +1,40 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: qa
+      MYSQL_USER: qa
+      MYSQL_PASSWORD: qa
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  qa_automation:
+    image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
+    environment:
+      REPORTS_DIR: /reports
+      # (optional) makes it explicit for debugging/consistency
+      ALLURE_RESULTS_DIR: /reports/allure-results
+    volumes:
+      - ./reports:/reports
+    command: ["/entrypoint.sh"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy

@@ -20,6 +20,9 @@
         <junit.version>4.13.2</junit.version>
         <testng.version>7.11.0</testng.version>
 
+        <!-- Allure -->
+        <allure.version>2.29.0</allure.version>
+
         <!-- Libs -->
         <selenium.version>4.39.0</selenium.version>
         <webdrivermanager.version>6.3.3</webdrivermanager.version>
@@ -32,7 +35,7 @@
     </properties>
 
     <dependencies>
-        <!-- Cucumber (без scope=test, т.к. код лежит в src/main/java) -->
+        <!-- Cucumber -->
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
@@ -44,14 +47,21 @@
             <version>${cucumber.version}</version>
         </dependency>
 
-        <!-- JUnit 4 (runner на JUnit4) -->
+        <!-- ✅ Allure adapter for Cucumber 7 -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-cucumber7-jvm</artifactId>
+            <version>${allure.version}</version>
+        </dependency>
+
+        <!-- JUnit 4 (runner) -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>${junit.version}</version>
         </dependency>
 
-        <!-- TestNG -->
+        <!-- TestNG (оставлено как у тебя) -->
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
@@ -79,7 +89,7 @@
             <version>${galen.version}</version>
         </dependency>
 
-        <!-- Apache HttpClient 4.x (оставляю 4.x чтобы не ломать API на 5.x) -->
+        <!-- Apache HttpClient 4.x -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
@@ -99,7 +109,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Surefire: фиксируем JUnit provider, иначе может выбрать TestNGProvider -->
+            <!-- Surefire: форсим JUnit provider -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

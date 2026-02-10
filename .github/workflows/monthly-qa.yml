@@ -1,0 +1,219 @@
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/.github/workflows/monthly-qa.yml
+name: Monthly QA Run
+
+on:
+  schedule:
+    - cron: "0 3 1 * *" # monthly on the 1st at 03:00 UTC
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace for docker volumes
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          chmod 0777 reports
+
+      - name: Docker login (GHCR)
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GHCR_TOKEN:-}" ]; then
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          else
+            echo "GHCR_TOKEN not set; skipping login"
+          fi
+
+      - name: Pull docker images (compose)
+        run: |
+          set -euo pipefail
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          docker compose -f docker-compose.ci.yml pull || true
+
+      # ✅ TEMP DEBUG: after pull / before run
+      - name: Debug QA image contents (tmp)
+        run: |
+          set -euo pipefail
+          echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -c '
+            set -ex
+
+            echo "== whoami/id =="
+            whoami || true
+            id || true
+
+            echo "== java =="
+            java -version || true
+
+            echo "== env (safe) =="
+            echo "CLASSPATH=${CLASSPATH-<empty>}"
+            echo "JAVA_HOME=${JAVA_HOME-<empty>}"
+            echo "PATH=$PATH"
+
+            echo "== entrypoint presence =="
+            ls -la /entrypoint.sh 2>/dev/null || true
+            echo "--- head /entrypoint.sh ---"
+            head -n 200 /entrypoint.sh 2>/dev/null || true
+
+            echo "== filesystem hints =="
+            ls -la /  || true
+            ls -la /app 2>/dev/null || true
+            ls -la /work 2>/dev/null || true
+            ls -la /opt 2>/dev/null || true
+
+            echo "== find junit/gatling jars (first 200) =="
+            find / -maxdepth 8 -type f \
+              \( -iname "*junit*.jar" -o -iname "*hamcrest*.jar" -o -iname "*gatling*.jar" -o -iname "*scala*.jar" -o -iname "*.jar" \) \
+              2>/dev/null | head -n 200
+          '
+
+      - name: Run all QA tests (docker compose)
+        id: run_qa
+        run: |
+          set -euo pipefail
+
+          echo "▶ Using image: $QA_AUTOMATION_IMAGE"
+          echo "▶ Starting DB dependencies..."
+          docker compose -f docker-compose.ci.yml up -d mysql mongodb
+
+          echo "▶ Running qa_automation..."
+          set +e
+          docker compose -f docker-compose.ci.yml up \
+            --no-deps \
+            --abort-on-container-exit \
+            --exit-code-from qa_automation \
+            qa_automation
+          rc=$?
+          set -e
+
+          echo "QA_RC=$rc" >> "$GITHUB_ENV"
+          echo "✔ qa_automation finished with rc=$rc"
+
+          echo "▶ Reports on host:"
+          ls -la reports || true
+
+          echo "▶ Cleanup..."
+          docker compose -f docker-compose.ci.yml down --remove-orphans || true
+
+          # Check if reports exist at all
+          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html && ! -f reports/index.html ]]; then
+            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
+            echo "❌ No reports generated at all"
+          else
+            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
+            echo "✔ Reports exist"
+          fi
+
+          # ✅ Allure contract: reports/allure-results must exist and be non-empty
+          if [[ ! -d reports/allure-results ]]; then
+            echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+            echo "❌ Missing reports/allure-results (Allure results are required for Jenkins Allure plugin)"
+          else
+            if ! find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
+              echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
+              echo "❌ reports/allure-results exists but is empty"
+            else
+              echo "ALLURE_EMPTY=0" >> "$GITHUB_ENV"
+              echo "✔ Allure results exist"
+            fi
+          fi
+
+          # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
+          exit 0
+
+      - name: Sync reports to VPS (versioned + publish latest)
+        if: always() && env.NO_REPORTS == '0'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${VPS_HOST:-}" ] || [ -z "${VPS_USER:-}" ] || [ -z "${VPS_SSH_KEY:-}" ]; then
+            echo "Missing VPS secrets (VPS_HOST/VPS_USER/VPS_SSH_KEY)."
+            exit 1
+          fi
+
+          RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          echo "▶ RUN_ID=$RUN_ID"
+
+          echo "$VPS_SSH_KEY" > /tmp/vps_key
+          chmod 600 /tmp/vps_key
+
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
+            "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
+
+          # Upload everything (includes allure-results if present)
+          scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
+            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
+
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
+            "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
+
+          # ✅ Publish latest run to BASE root (NO symlinks; python http.server friendly)
+          ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
+            set -euo pipefail
+            BASE=/home/pet_projects/qa_automation/reports
+            RUN_ID=\$(cat \"\$BASE/LATEST\")
+            SRC=\"\$BASE/runs/\$RUN_ID\"
+
+            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
+            rm -f \"\$BASE/index.html\" || true
+
+            cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
+            cp -a \"\$SRC/formy\" \"\$BASE/formy\"
+            cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
+            cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
+            [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
+            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
+
+            # Fix links to be BASE-root friendly
+            sed -i 's#reports/##g' \"\$BASE/index.html\" || true
+            sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
+
+            chmod -R a+rX \"\$BASE\" || true
+            echo \"✅ Published \$RUN_ID\"
+          "
+
+      # ✅ Result: workflow does NOT fail when tests fail.
+      #    It fails ONLY if pipeline is broken (no reports / no allure-results).
+      - name: Finalize (do not fail on test failures)
+        if: always()
+        run: |
+          set -euo pipefail
+
+          echo "▶ QA_RC=${QA_RC:-<unset>}"
+          echo "▶ NO_REPORTS=${NO_REPORTS:-<unset>}"
+          echo "▶ ALLURE_EMPTY=${ALLURE_EMPTY:-<unset>}"
+
+          if [[ "${NO_REPORTS:-1}" == "1" ]]; then
+            echo "❌ No reports generated at all — failing build (pipeline broken)"
+            exit 10
+          fi
+
+          if [[ "${ALLURE_EMPTY:-1}" == "1" ]]; then
+            echo "❌ Allure results missing/empty — failing build (pipeline broken)"
+            exit 12
+          fi
+
+          if [[ "${QA_RC:-0}" != "0" ]]; then
+            echo "⚠️ qa_automation failed (rc=${QA_RC}) — keeping workflow GREEN because reports were delivered"
+            exit 0
+          fi
+
+          echo "✔ All QA test suites finished successfully"

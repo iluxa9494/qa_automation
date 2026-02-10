@@ -78,3 +78,13 @@ reports/formy
 # build outputs
 **/target/
 **/*.class
+
+# compose file
+compose
+
+# local scripts and services
+mysql/
+nginx/
+
+/qa_automation/project_dump.txt
+/qa_automation/dump_tree.sh

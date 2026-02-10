@@ -25,7 +25,7 @@
     </properties>
 
     <dependencies>
-        <!-- Рекомендуемый стек Gatling для Scala DSL -->
+        <!-- Gatling charts bundle (Scala DSL) -->
         <dependency>
             <groupId>io.gatling.highcharts</groupId>
             <artifactId>gatling-charts-highcharts</artifactId>
@@ -33,6 +33,15 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- IMPORTANT: provides io.gatling.app.Gatling main class -->
+        <dependency>
+            <groupId>io.gatling</groupId>
+            <artifactId>gatling-app</artifactId>
+            <version>${gatling.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Optional -->
         <dependency>
             <groupId>io.gatling</groupId>
             <artifactId>gatling-test-framework</artifactId>
@@ -40,7 +49,7 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Логи (опционально, но удобно для репортов Gatling) -->
+        <!-- Logging (optional) -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -51,7 +60,7 @@
 
     <build>
         <plugins>
-            <!-- Java compiler под 17 -->
+            <!-- Java compiler 17 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -62,7 +71,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Scala plugin, чтобы собирать src/test/scala -->
+            <!-- Scala compile for src/test/scala -->
             <plugin>
                 <groupId>net.alchim31.maven</groupId>
                 <artifactId>scala-maven-plugin</artifactId>
@@ -85,14 +94,12 @@
                 </configuration>
             </plugin>
 
-            <!-- Gatling Maven Plugin -->
+            <!-- Gatling Maven Plugin (handy for local mvn runs; runtime container uses java directly) -->
             <plugin>
                 <groupId>io.gatling</groupId>
                 <artifactId>gatling-maven-plugin</artifactId>
                 <version>${gatling.plugin.version}</version>
 
-                <!-- ВАЖНО: добавляем highcharts как зависимость плагина,
-                     чтобы ComponentLibrary гарантированно был в classpath -->
                 <dependencies>
                     <dependency>
                         <groupId>io.gatling.highcharts</groupId>
@@ -110,12 +117,9 @@
                         </goals>
                     </execution>
                 </executions>
+
                 <configuration>
-                    <!-- Конкретная Simulation, которую мы хотим гонять через mvn test -->
                     <simulationClass>simulations.GETBookingFixedDurationLoadCheck</simulationClass>
-                    <!-- Если когда-нибудь захочешь запускать все симуляции:
-                    <runMultipleSimulations>true</runMultipleSimulations>
-                    -->
                 </configuration>
             </plugin>
         </plugins>

@@ -5,13 +5,19 @@ import org.junit.runner.RunWith;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         features = "src/test/features",
-        glue = {"Steps"},
+        glue = "Steps",
         plugin = {
                 "pretty",
-                // ✅ HTML plugin должен писать в ФАЙЛ, а не в папку
-                "html:target/cucumber.html",
-                // ✅ JSON для Nested Data
-                "json:target/cucumber/cucumber.json"
+
+                // ✅ отчёты
+                "json:/reports/formy/cucumber.json",
+                "html:/reports/formy/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/formy/TEST-formy.xml",
+
+                // ✅ Allure (Cucumber 7 adapter)
+                "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true
 )

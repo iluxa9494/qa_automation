@@ -1,51 +1,84 @@
-# Dockerfile
-ARG SELENIUM_BASE_IMAGE=seleniarm/standalone-chromium:latest
+# /Users/ilia/IdeaProjects/pet_projects/qa_automation/Dockerfile
+# (оставляем логику как есть — она рабочая; фиксим именно tools/run_*.sh)
+ARG SELENIUM_BASE_IMAGE=selenium/standalone-chromium:latest
+ARG BUILDER_IMAGE=maven:3.9.6-eclipse-temurin-17
+
+FROM ${BUILDER_IMAGE} AS builder
+WORKDIR /app
+
+COPY . .
+
+RUN set -eux; \
+    mvn -B -q -f formyProject/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f formyProject/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=formyProject/target/deps; \
+    mvn -B -q -f databaseUsage/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f databaseUsage/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=databaseUsage/target/deps; \
+    mvn -B -q -f restfulBookerLoad/pom.xml -DskipTests test-compile; \
+    mvn -B -q -f restfulBookerLoad/pom.xml -DskipTests dependency:copy-dependencies \
+      -DincludeScope=test -DoutputDirectory=restfulBookerLoad/target/deps
+
 FROM ${SELENIUM_BASE_IMAGE}
 
 USER root
 WORKDIR /app
 
-# FIX: base image часто содержит apt sources на sid + bookworm → ломает зависимости chromium (t64)
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN set -eux; \
-  sed -i '/sid/d' /etc/apt/sources.list || true; \
-  for f in /etc/apt/sources.list.d/*.list; do sed -i '/sid/d' "$f" || true; done
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl python3 util-linux; \
+    \
+    pick_pkg() { \
+      if apt-cache show "$1" >/dev/null 2>&1; then echo "$1"; else echo "$2"; fi; \
+    }; \
+    \
+    A_SOUND="$(pick_pkg libasound2t64 libasound2)"; \
+    A_ATK1="$(pick_pkg libatk1.0-0t64 libatk1.0-0)"; \
+    A_ATKBR="$(pick_pkg libatk-bridge2.0-0t64 libatk-bridge2.0-0)"; \
+    A_CUPS="$(pick_pkg libcups2t64 libcups2)"; \
+    A_GTK3="$(pick_pkg libgtk-3-0t64 libgtk-3-0)"; \
+    \
+    apt-get install -y --no-install-recommends \
+      xvfb \
+      openjdk-17-jre-headless \
+      libxaw7 libx11-6 libxext6 libxi6 libxtst6 libxrender1 libxrandr2 \
+      libxcomposite1 libxdamage1 libxfixes3 libxcb1 libxss1 \
+      "${A_SOUND}" "${A_CUPS}" libdrm2 libgbm1 \
+      "${A_ATK1}" "${A_ATKBR}" "${A_GTK3}" \
+      libnss3 libnspr4 fonts-liberation; \
+    \
+    rm -rf /var/lib/apt/lists/*; \
+    apt-get clean
 
-# Java 17 (JDK) + Maven + Xvfb + Chromium + Chromedriver + X11/AWT deps
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-       xvfb maven openjdk-17-jdk-headless \
-       chromium chromium-driver \
-       libxaw7 libx11-6 libxext6 libxi6 libxtst6 libxrender1 libxrandr2 \
-       libxcomposite1 libxdamage1 libxfixes3 libxcb1 libxss1 \
-       libasound2 libcups2 libdrm2 libgbm1 \
-       libatk1.0-0 libatk-bridge2.0-0 libgtk-3-0 \
-       libnss3 libnspr4 fonts-liberation \
-  && rm -rf /var/lib/apt/lists/*
-
-# на всякий случай (если бинарь окажется не /usr/bin/chromedriver)
 RUN set -eux; \
-  if [ ! -f /usr/bin/chromedriver ] && command -v chromedriver >/dev/null 2>&1; then \
-    ln -s "$(command -v chromedriver)" /usr/bin/chromedriver; \
-  fi
+    JAVA_BIN="$(readlink -f "$(command -v java)")"; \
+    JAVA_HOME_DIR="$(dirname "$(dirname "$JAVA_BIN")")"; \
+    echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
+    echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
+    echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
 
-# ✅ Берём JAVA_HOME от javac, чтобы точно был JDK (а не JRE)
-RUN set -eux; \
-  JAVAC_BIN="$(readlink -f "$(command -v javac)")"; \
-  JAVA_HOME_DIR="$(dirname "$(dirname "$JAVAC_BIN")")"; \
-  echo "export JAVA_HOME=$JAVA_HOME_DIR" > /etc/profile.d/java.sh; \
-  echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> /etc/profile.d/java.sh; \
-  echo "JAVA_HOME=$JAVA_HOME_DIR" >> /etc/environment
+COPY --from=builder /app/formyProject /app/formyProject
+COPY --from=builder /app/databaseUsage /app/databaseUsage
+COPY --from=builder /app/restfulBookerLoad /app/restfulBookerLoad
+COPY --from=builder /app/tools /app/tools
 
-# ✅ /reports должен быть writable для seluser
+RUN chmod +x /app/tools/run_formy.sh /app/tools/run_database.sh /app/tools/run_gatling.sh
+
+COPY entrypoint-qa-dashboard.sh /entrypoint-qa-dashboard.sh
+RUN chmod +x /entrypoint-qa-dashboard.sh
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 RUN mkdir -p /reports && chown -R seluser:seluser /reports
+RUN chown -R seluser:seluser /app
 
 ENV DISPLAY=:99
-ENV MAVEN_OPTS="-Xms128m -Xmx1024m"
+ENV JAVA_OPTS="-Xms128m -Xmx1024m"
 
-COPY . .
-
-# selenium base images ожидают запуск не под root
-RUN chown -R seluser:seluser /app
 USER seluser
 
-CMD ["bash", "-lc", "echo 'Use docker compose services (formy-tests, database-tests, restfulbooker-load) to run tests.'"]
+ENTRYPOINT ["/bin/bash", "-lc"]
+CMD ["/entrypoint-qa-dashboard.sh"]

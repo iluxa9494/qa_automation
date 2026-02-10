@@ -5,13 +5,19 @@ import org.junit.runner.RunWith;
 @RunWith(Cucumber.class)
 @CucumberOptions(
         features = "src/test/features",
-        glue = {"Steps"},
+        glue = "Steps",
         plugin = {
                 "pretty",
-                // HTML репорт должен быть ФАЙЛОМ
-                "html:target/cucumber.html",
-                // JSON для агрегации/дженкинса и nested report
-                "json:target/cucumber/cucumber.json"
+
+                // ✅ отчёты
+                "json:/reports/databaseUsage/cucumber.json",
+                "html:/reports/databaseUsage/cucumber.html",
+
+                // ✅ Jenkins trends (JUnit XML)
+                "junit:/reports/databaseUsage/TEST-databaseUsage.xml",
+
+                // ✅ Allure (Cucumber 6 adapter)
+                "io.qameta.allure.cucumber6jvm.AllureCucumber6Jvm"
         },
         monochrome = true
 )
