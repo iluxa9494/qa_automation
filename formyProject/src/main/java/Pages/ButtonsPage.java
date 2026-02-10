@@ -9,22 +9,34 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class ButtonsPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(id = "btnGroupDrop1")
-    public static WebElement dropdownButton;
+    private WebElement dropdownButton;
     @FindBy(xpath = "//div[@class='dropdown-menu show']")
-    public static WebElement dropdownList;
+    private WebElement dropdownList;
     @FindBy(xpath = "//a[text()= 'Dropdown link 1']")
-    public static WebElement dropdownList1;
+    private WebElement dropdownList1;
     @FindBy(xpath = "//a[text()= 'Dropdown link 2']")
-    public static WebElement dropdownList2;
+    private WebElement dropdownList2;
 
     public ButtonsPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -91,3 +103,4 @@ public class ButtonsPage {
         checkResult(dropdownList.isDisplayed() && dropdownList1.isDisplayed() && dropdownList2.isDisplayed());
     }
 }
+

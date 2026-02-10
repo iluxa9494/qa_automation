@@ -3,13 +3,16 @@ package Steps;
 import Config.Drive;
 import Pages.ErrorPage;
 import io.cucumber.java.en.Then;
-import org.openqa.selenium.support.PageFactory;
+import org.testng.Assert;
 
 public class ErrorSteps extends Drive {
-    ErrorPage errorPage = PageFactory.initElements(driver, ErrorPage.class);
 
-    @Then("Check {string} title {string} has displayed")
-    public void titleErrorDisplayed(String arg1, String arg2) {
-        errorPage.isTitleErrorDisplayed(arg1, arg2);
+    private ErrorPage errorPage() {
+        return new ErrorPage(Drive.getDriver());
+    }
+
+    @Then("User sees error page")
+    public void userSeesErrorPage() {
+        Assert.assertTrue(errorPage().errorHeading.isDisplayed(), "Error heading should be displayed");
     }
 }

@@ -3,64 +3,100 @@ package Config;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
-import org.testng.annotations.AfterSuite;
-import org.testng.annotations.BeforeSuite;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.Properties;
 
 public class Drive {
 
-    public static WebDriver driver;
+    // было private -> делаем protected, чтобы наследники (Steps.* extends Drive) могли использовать `driver`
+    protected static WebDriver driver;
 
-    @BeforeSuite
-    public void chooseDriver() throws IOException {
+    private static volatile boolean runAborted = false;
+    private static volatile Throwable abortCause;
 
-        Properties prop = new Properties();
-        try (FileInputStream fis = new FileInputStream("src/main/resources/config.properties")) {
-            prop.load(fis);
+    public static synchronized WebDriver getDriver() {
+        if (driver == null) {
+            driver = createChromeDriver();
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
+            driver.manage().timeouts().scriptTimeout(Duration.ofSeconds(30));
         }
-
-        String driverType = prop.getProperty("driverType", "chrome");
-        String url = prop.getProperty("url");
-
-        switch (driverType) {
-            case "chrome": {
-                String chromeDriverPath =
-                        System.getenv().getOrDefault("CHROMEDRIVER_PATH", "/usr/bin/chromedriver");
-                System.setProperty("webdriver.chrome.driver", chromeDriverPath);
-
-                ChromeOptions options = new ChromeOptions();
-                options.addArguments("--headless=new");
-                options.addArguments("--no-sandbox");
-                options.addArguments("--disable-dev-shm-usage");
-                options.addArguments("--disable-gpu");
-                options.addArguments("--window-size=1920,1080");
-                options.addArguments("--remote-allow-origins=*");
-
-                String chromeBin = System.getenv("CHROME_BIN");
-                if (chromeBin != null && !chromeBin.isBlank()) {
-                    options.setBinary(chromeBin);
-                }
-
-                driver = new ChromeDriver(options);
-                break;
-            }
-            default:
-                throw new RuntimeException("Unsupported driverType: " + driverType);
-        }
-
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
-        driver.get(url);
+        return driver;
     }
 
-    @AfterSuite(alwaysRun = true)
-    public void stopTest() {
-        if (driver != null) {
-            driver.quit();
-            driver = null;
+    // 👇 peek без создания (чтобы Hooks мог “пинговать” и не поднимать сессию заново)
+    public static synchronized WebDriver peekDriver() {
+        return driver;
+    }
+
+    private static WebDriver createChromeDriver() {
+        ChromeOptions options = new ChromeOptions();
+
+        // стабильный режим для CI/Docker
+        options.addArguments("--headless=new");
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--remote-allow-origins=*");
+
+        String chromeBin = System.getenv("CHROME_BIN");
+        if (chromeBin != null && !chromeBin.isBlank()) {
+            options.setBinary(chromeBin);
         }
+
+        return new ChromeDriver(options);
+    }
+
+    // ---- Backward compatible lifecycle API ----
+
+    public static synchronized void start() {
+        // раньше это делали хуки/степы — оставляем контракт
+        getDriver();
+    }
+
+    public static synchronized void stop() {
+        safeQuit();
+    }
+
+    // Старые имена, чтобы не править DriveSteps
+    public static void chooseDriver() throws IOException {
+        start();
+        String baseUrl = System.getenv("FORMY_BASE_URL");
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = "https://formy-project.herokuapp.com/";
+        }
+        getDriver().get(baseUrl);
+    }
+
+    public static void stopTest() {
+        stop();
+    }
+
+    public static synchronized void safeQuit() {
+        if (driver != null) {
+            try {
+                driver.quit();
+            } catch (Throwable ignored) {
+            } finally {
+                driver = null;
+            }
+        }
+    }
+
+    // ---- abort run mechanics (под Hooks) ----
+
+    public static boolean isRunAborted() {
+        return runAborted;
+    }
+
+    public static Throwable getAbortCause() {
+        return abortCause;
+    }
+
+    public static synchronized void markRunAborted(Throwable cause) {
+        runAborted = true;
+        abortCause = cause;
     }
 }

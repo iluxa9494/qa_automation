@@ -11,18 +11,30 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class DropdownPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(id = "dropdownMenuButton")
-    public static WebElement dropdownButton;
+    private WebElement dropdownButton;
     @FindBy(className = "dropdown-menu show")
-    public static WebElement dropdownList;
+    private WebElement dropdownList;
 
     public DropdownPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -90,3 +102,4 @@ public class DropdownPage {
         }
     }
 }
+

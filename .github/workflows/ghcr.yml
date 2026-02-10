@@ -2,16 +2,22 @@ name: Build and push qa_automation image to GHCR
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths-ignore:
+      - "reports/**"
   workflow_dispatch: {}
 
 permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: qa_automation-ghcr
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/qa_automation
+  IMAGE_NAME: qa_automation
 
 jobs:
   build-and-push:
@@ -20,10 +26,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ✅ надежный buildx (docker-container по умолчанию)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      # ✅ нормализуем owner/repo + теги (и гарантируем lowercase)
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          driver: docker
+          images: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha
 
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -38,6 +54,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

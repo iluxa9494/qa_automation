@@ -4,6 +4,8 @@ import io.cucumber.datatable.DataTable;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.FindBy;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -13,30 +15,33 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Properties;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class DatepickerPage {
-    WebDriver driver;
+    private final WebDriver driver;
     @FindBy(xpath = "//input[@id='datepicker']")
-    public static WebElement inputFieldDatepicker;
+    private WebElement inputFieldDatepicker;
     @FindBy(xpath = "//h1[text()='Datepicker']")
-    public static WebElement titleDatepicker;
+    private WebElement titleDatepicker;
     //calendar
     @FindBy(xpath = "//div[@class='datepicker-days']")
-    public static WebElement calendarBody;
+    private WebElement calendarBody;
     //header elements
     @FindBy(xpath = "//a[@id='logo']")
-    public static WebElement formyPage;
+    private WebElement formyPage;
     @FindBy(xpath = "//a[text()='Form']")
-    public static WebElement formPage;
+    private WebElement formPage;
     @FindBy(xpath = "//a[@id='navbarDropdownMenuLink']")
-    public static WebElement headerDropdownComponents;
+    private WebElement headerDropdownComponents;
     LocalDate currentDate = LocalDate.now();
     @FindBy(xpath = "//td[@class='today day']")
-    public static WebElement todayDay;
+    private WebElement todayDay;
     //months
     String currentMonth = String.valueOf(currentDate.getMonth());
     LocalDate prevMonth = currentDate.minusMonths(1);
@@ -60,9 +65,19 @@ public class DatepickerPage {
 
     public DatepickerPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -83,6 +98,62 @@ public class DatepickerPage {
     public void checkResultFailed() {
         makeScreenshot();
         Assert.fail("FAILED");
+    }
+
+    private void clickWithRetry(By locator) {
+        int attempts = 0;
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        while (attempts < 3) {
+            try {
+                attempts++;
+                WebElement el = wait.until(ExpectedConditions.elementToBeClickable(locator));
+                el.click();
+                return;
+            } catch (StaleElementReferenceException | ElementClickInterceptedException e) {
+                if (attempts >= 3) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private void waitForDocumentReady() {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(d -> "complete".equals(
+                String.valueOf(((JavascriptExecutor) d).executeScript("return document.readyState"))
+        ));
+    }
+
+    private boolean waitForHeaderVisible(String text) {
+        By locator = (text == null)
+                ? By.tagName("h1")
+                : By.xpath("//h1[text()='" + text + "']");
+        try {
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
+    }
+
+    private void ensureHeaderVisible(String text) {
+        driver.switchTo().defaultContent();
+        if (waitForHeaderVisible(text)) {
+            return;
+        }
+        for (WebElement frame : driver.findElements(By.tagName("iframe"))) {
+            try {
+                driver.switchTo().defaultContent();
+                driver.switchTo().frame(frame);
+                if (waitForHeaderVisible(text)) {
+                    return;
+                }
+            } catch (NoSuchFrameException ignored) {
+            }
+        }
+        driver.switchTo().defaultContent();
+        checkResultFailed();
     }
 
     public String getOSValue() throws IOException {
@@ -356,10 +427,10 @@ public class DatepickerPage {
     public void isPageOpened(String arg1, String arg2) {
         switch (arg1) {
             case "Formy":
-                formyPage.click();
+                clickWithRetry(By.id("logo"));
                 break;
             case "Form":
-                formPage.click();
+                clickWithRetry(By.xpath("//a[text()='Form']"));
                 break;
             case "Backward":
                 driver.navigate().back();
@@ -371,17 +442,17 @@ public class DatepickerPage {
                 driver.navigate().refresh();
                 break;
             default:
-                WebElement clickOnComponentElement = driver.findElement(By.xpath("//a[@class='dropdown-item' and text()='" + arg1 + "']"));
-                clickOnComponentElement.click();
+                clickWithRetry(By.xpath("//a[@class='dropdown-item' and text()='" + arg1 + "']"));
                 break;
         }
+        waitForDocumentReady();
         if ("Welcome to Formy".equals(arg2)) {
-            try {
-                WebElement welcomeTitle = driver.findElement(By.xpath("//h1[text()='Welcome to Formy']"));
-                checkResult(welcomeTitle.isEnabled());
-            } catch (NoSuchElementException e) {
-                checkResultFailed();
-            }
+            ensureHeaderVisible("Welcome to Formy");
+        } else {
+            ensureHeaderVisible(null);
+        }
+        if ("Welcome to Formy".equals(arg2)) {
+            checkResult(true);
         } else {
             openedPageCheck(driver.getCurrentUrl(), arg2);
         }
@@ -391,56 +462,64 @@ public class DatepickerPage {
         checkResult(arg1.substring(36).equals(arg2));
     }
 
-    public void output(WebElement arg1, String arg2) {
-        try {
-            arg1.getText();
-            System.out.println("PASSED");
-        } catch (NoSuchElementException e) {
-            checkResultFailed();
+    public void output(By locator, String arg2) {
+        int maxAttempts = Integer.getInteger("qa.page.check.retries", 2);
+        if (maxAttempts < 1) {
+            maxAttempts = 1;
+        }
+        long waitSeconds = Long.getLong("qa.page.check.timeout.seconds", 10);
+        long start = System.nanoTime();
+
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(waitSeconds));
+                WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+                el.getText();
+                long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+                System.out.println("PASSED (attempt " + attempt + "/" + maxAttempts + ", elapsed_ms=" + elapsedMs + ")");
+                return;
+            } catch (StaleElementReferenceException | NoSuchElementException | TimeoutException e) {
+                long elapsedMs = (System.nanoTime() - start) / 1_000_000L;
+                System.out.println("Retry page check '" + arg2 + "' attempt " + attempt + "/" + maxAttempts
+                        + " elapsed_ms=" + elapsedMs + " cause=" + e.getClass().getSimpleName());
+                if (attempt == maxAttempts) {
+                    checkResultFailed();
+                }
+            }
         }
     }
 
     public void isPage(String arg1) { //byTitle
         switch (arg1) {
             case "Buttons":
-                WebElement buttonPrimary = driver.findElement(By.xpath("//button[@type='button' and text()='Primary']"));
-                output(buttonPrimary, arg1);
+                output(By.xpath("//button[@type='button' and text()='Primary']"), arg1);
                 break;
             case "Checkbox":
-                WebElement pageTitleCheckbox = driver.findElement(By.xpath("//h1[text()='Checkboxes']"));
-                output(pageTitleCheckbox, arg1);
+                output(By.xpath("//h1[text()='Checkboxes']"), arg1);
                 break;
             case "Drag and Drop":
-                WebElement pageTitleDragDrop = driver.findElement(By.xpath("//h1[text()='Drag the image into the box']"));
-                output(pageTitleDragDrop, arg1);
+                output(By.xpath("//h1[text()='Drag the image into the box']"), arg1);
                 break;
             case "Enabled and disabled elements":
-                WebElement pageTitleEnabled = driver.findElement(By.xpath("//h1[text()='Enabled and Disabled elements']"));
-                output(pageTitleEnabled, arg1);
+                output(By.xpath("//h1[text()='Enabled and Disabled elements']"), arg1);
                 break;
             case "File Upload":
-                WebElement pageTitleFileUpload = driver.findElement(By.tagName("h1"));
-                output(pageTitleFileUpload, arg1);
+                output(By.tagName("h1"), arg1);
                 break;
             case "Key and Mouse Press":
-                WebElement pageTitleKey = driver.findElement(By.xpath("//h1[text()='Keyboard and Mouse Input']"));
-                output(pageTitleKey, arg1);
+                output(By.xpath("//h1[text()='Keyboard and Mouse Input']"), arg1);
                 break;
             case "Page Scroll":
-                WebElement pageTitlePageScroll = driver.findElement(By.xpath("//h1[text()='Large page content']"));
-                output(pageTitlePageScroll, arg1);
+                output(By.xpath("//h1[text()='Large page content']"), arg1);
                 break;
             case "Radio Button":
-                WebElement pageTitleRadioButtons = driver.findElement(By.xpath("//h1[text()='Radio buttons']"));
-                output(pageTitleRadioButtons, arg1);
+                output(By.xpath("//h1[text()='Radio buttons']"), arg1);
                 break;
             case "Thanks":
-                WebElement pageTitleThanks = driver.findElement(By.xpath("//h1[text()='Thanks for submitting your form']"));
-                output(pageTitleThanks, arg1);
+                output(By.xpath("//h1[text()='Thanks for submitting your form']"), arg1);
                 break;
             default:
-                WebElement findElementsInComponentsDropdown = driver.findElement(By.xpath("//h1[text()='" + arg1 + "']"));
-                output(findElementsInComponentsDropdown, arg1);
+                output(By.xpath("//h1[text()='" + arg1 + "']"), arg1);
                 break;
         }
     }

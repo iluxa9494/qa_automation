@@ -1,90 +1,70 @@
-### JAVA ###
-*.class
-*.jar
-*.war
-*.ear
-
-### MAVEN ###
-target/
-.mvn/
-!**/src/main/**/target/
-!**/src/test/**/target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-
-### BUILD DIRS ###
-out/
-build/
-
-### IDEA / STS ###
+# =========================
+# IntelliJ / IDE
+# =========================
 .idea/
 *.iml
 *.ipr
 *.iws
-.springBeans
-.sts4-cache
+out/
 
-### SPRING BOOT ###
-/BOOT-INF/
-/META-INF/
-/module-info.class
-
-### LOGS / TEMP ###
-logs/
-*.log
-*.tmp
-hs_err_pid*
-replay_pid*
-
-### TEST REPORTS / QA ###
-galen-reports/
-report/
-../reports/
-screenshots/
-test-output/
-surefire-reports/
-cucumber-reports/
-*.feature.cache
-
-### MACOS ###
+# =========================
+# OS junk
+# =========================
 .DS_Store
-
-### WINDOWS ###
 Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
 
-### LINUX ###
-*~
-.nfs*
-
-### ENV VARIABLES ###
-.env
-.env.*
-*.env
-
-### LOCAL DEV OVERRIDES ###
-docker-compose.override.local.yml
-docker-compose.dev.yml
-
-# reports should be runtime artifacts, not source-controlled
-reports/formy
-!reports/.gitkeep
-
-# build outputs
+# =========================
+# Java / Maven build
+# =========================
 **/target/
 **/*.class
+**/.classpath
+**/.project
+**/.settings/
 
-# compose file
-compose
+# =========================
+# Test reports / artifacts
+# =========================
 
-# local scripts and services
-mysql/
-nginx/
+# Your generated reports folder (served by dashboard)
+reports/
 
-/qa_automation/project_dump.txt
-/qa_automation/dump_tree.sh
+# Allure
+allure-results/
+allure-report/
+
+# Cucumber outputs (if any appear somewhere)
+**/cucumber*.json
+**/cucumber*.html
+**/cucumber.html
+**/cucumber.json
+
+# Surefire
+**/surefire-reports/
+
+# Galen reports / dumps (если это генерится автоматически)
+**/galen-report.*
+**/layout-*.png
+**/pagedump*/
+**/report.html
+**/report.json
+
+# Gatling (обычно генерится, но если хочешь хранить — убери эти строки)
+**/gatling/
+**/simulation.log
+
+# =========================
+# Local env / secrets
+# =========================
+**/.env
+**/*.local
+**/*secrets*
+**/*secret*
+
+# =========================
+# Archives / backups
+# =========================
+*.tar.gz
+*.zip
+*.bak
+project_dump.txt

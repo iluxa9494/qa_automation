@@ -9,21 +9,32 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class CheckboxPage {
-    WebDriver driver;
+import org.openqa.selenium.support.PageFactory;
 
+public class CheckboxPage {
+    private final WebDriver driver;
     @FindBy(id = "checkbox-1")
-    public static WebElement checkbox1;
+    private WebElement checkbox1;
     @FindBy(id = "checkbox-2")
-    public static WebElement checkbox2;
+    private WebElement checkbox2;
     @FindBy(id = "checkbox-3")
-    public static WebElement checkbox3;
+    private WebElement checkbox3;
 
     public CheckboxPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -77,3 +88,4 @@ public class CheckboxPage {
         }
     }
 }
+

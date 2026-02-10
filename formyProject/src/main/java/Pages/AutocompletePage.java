@@ -14,42 +14,45 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import org.openqa.selenium.support.PageFactory;
+
 public class AutocompletePage {
 
     @FindBy(id = "autocomplete")
-    public static WebElement inputFieldAddress;
+    private WebElement inputFieldAddress;
     @FindBy(id = "street_number")
-    public static WebElement inputFieldStreetAddress;
+    private WebElement inputFieldStreetAddress;
     @FindBy(id = "route")
-    public static WebElement inputFieldStreetAddress2;
+    private WebElement inputFieldStreetAddress2;
     @FindBy(id = "locality")
-    public static WebElement inputFieldCity;
+    private WebElement inputFieldCity;
     @FindBy(id = "administrative_area_level_1")
-    public static WebElement inputFieldState;
+    private WebElement inputFieldState;
     @FindBy(id = "postal_code")
-    public static WebElement inputFieldZipCode;
+    private WebElement inputFieldZipCode;
     @FindBy(id = "country")
-    public static WebElement inputFieldCountry;
+    private WebElement inputFieldCountry;
 
     @FindBy(xpath = "//h1[text()='Autocomplete']")
-    public static WebElement titleAutocomplete;
+    private WebElement titleAutocomplete;
 
     @FindBy(xpath = "//div[@class='pac-item'][1]")
-    public static WebElement dropdownList;
+    private WebElement dropdownList;
     @FindBy(xpath = "//div[@class='pac-item'][2]")
-    public static WebElement dropdownList2Element;
+    private WebElement dropdownList2Element;
     @FindBy(xpath = "//div[@class='pac-item'][3]")
-    public static WebElement dropdownList3Element;
+    private WebElement dropdownList3Element;
     @FindBy(xpath = "//div[@class='pac-item'][4]")
-    public static WebElement dropdownList4Element;
+    private WebElement dropdownList4Element;
     @FindBy(xpath = "//div[@class='pac-item'][5]")
-    public static WebElement dropdownList5Element;
+    private WebElement dropdownList5Element;
 
     private final WebDriver driver;
     private final WebDriverWait wait;
 
     public AutocompletePage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
     }
 
@@ -59,6 +62,38 @@ public class AutocompletePage {
 
     private void waitClickable(WebElement el) {
         wait.until(ExpectedConditions.elementToBeClickable(el));
+    }
+
+    private void clickWithRetry(By locator) {
+        int attempts = 0;
+        while (attempts < 3) {
+            try {
+                attempts++;
+                WebElement el = wait.until(ExpectedConditions.elementToBeClickable(locator));
+                el.click();
+                return;
+            } catch (StaleElementReferenceException | ElementClickInterceptedException e) {
+                if (attempts >= 3) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private void waitForPacResults() {
+        // Google autocomplete renders results asynchronously; wait for container then items.
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-container")));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-item")));
+    }
+
+    private boolean isPacVisibleShort() {
+        try {
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(2));
+            shortWait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".pac-container")));
+            return true;
+        } catch (TimeoutException e) {
+            return false;
+        }
     }
 
     private String valueOf(WebElement el) {
@@ -124,7 +159,16 @@ public class AutocompletePage {
     // Остальная логика
     // =========================
 
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
+    }
+
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
@@ -179,16 +223,17 @@ public class AutocompletePage {
         field.click();
         field.sendKeys(Keys.SPACE);
 
-        waitVisible(dropdownList);
-
-        if (!dropdownList.getText().equals("")) {
-            checkResult(arg1.equals("Address"));
+        if ("Address".equals(arg1)) {
+            waitForPacResults();
+            waitVisible(dropdownList);
+            checkResult(!dropdownList.getText().equals(""));
         } else {
-            checkResult(!arg1.equals("Address"));
+            checkResult(!isPacVisibleShort());
         }
     }
 
     public void isElementsInDropdownDisplayed(String arg1) {
+        waitForPacResults();
         waitVisible(dropdownList);
         waitVisible(dropdownList2Element);
         waitVisible(dropdownList3Element);
@@ -211,8 +256,8 @@ public class AutocompletePage {
         inputFieldAddress.click();
         inputFieldAddress.sendKeys(Keys.SPACE);
 
-        waitClickable(dropdownList);
-        dropdownList.click();
+        waitForPacResults();
+        clickWithRetry(By.cssSelector(".pac-item"));
 
         wait.until(d -> !valueOf(inputFieldCity).isEmpty());
 

@@ -1,10 +1,17 @@
 package Actions;
 
-import com.mongodb.client.*;
+import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.model.Filters;
 import io.cucumber.datatable.DataTable;
 import org.bson.Document;
 import org.testng.Assert;
+
+import java.util.concurrent.TimeUnit;
 
 import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Updates.combine;
@@ -16,16 +23,23 @@ public class DatabaseUsageMongoDB {
     private MongoDatabase database;
     private MongoCollection<Document> collection;
 
-    private static String envOrDefault(String key, String def) {
-        String v = System.getenv(key);
+    private static String configOrDefault(String key, String def) {
+        String v = System.getProperty(key);
+        if (v == null || v.trim().isEmpty()) {
+            v = System.getenv(key);
+        }
         return (v == null || v.trim().isEmpty()) ? def : v.trim();
     }
 
     public void connectToMongoDB(String dbName) {
-        // ✅ контейнер: mongodb://mongo:27017 (из env MONGO_URI)
-        // ✅ локально:   mongodb://localhost:27017
-        String mongoUri = envOrDefault("MONGO_URI", "mongodb://localhost:27017");
-        client = MongoClients.create(mongoUri);
+        // CI: avoid localhost and fail fast on missing DB to prevent 30s hangs per scenario.
+        String mongoUri = configOrDefault("MONGO_URI", "mongodb://mongodb:27017");
+        MongoClientSettings settings = MongoClientSettings.builder()
+                .applyConnectionString(new ConnectionString(mongoUri))
+                .applyToClusterSettings(builder -> builder.serverSelectionTimeout(5, TimeUnit.SECONDS))
+                .applyToSocketSettings(builder -> builder.connectTimeout(3, TimeUnit.SECONDS))
+                .build();
+        client = MongoClients.create(settings);
         database = client.getDatabase(dbName);
         System.out.println("Connected to MongoDB: " + mongoUri + " db=" + dbName);
     }
@@ -65,7 +79,6 @@ public class DatabaseUsageMongoDB {
 
         collection = database.getCollection("city");
 
-        // ✅ раньше было жестко "ID=1" — теперь читаем по id из feature
         Document doc = collection.find(Filters.eq(elements.get(0), idCheck)).first();
 
         check(doc != null

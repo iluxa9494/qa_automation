@@ -4,33 +4,29 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
- * Generates reports/nested/data.json for Jenkins "Nested Data Reporting" plugin.
+ * Generates reports/nested/data.json for compatibility dashboards.
  *
- * Output schema (plugin expects):
+ * Output schema (values updated only; structure preserved if file already exists):
  * {
- *   "id": "...",
- *   "name": "...",
- *   "items": [
- *     {
- *       "id": "...",
- *       "name": "...",
- *       "result": { "passed": 10, "failed": 2, "total": 12 },
- *       "items": [ ... ]
- *     }
- *   ]
+ *   "runId": "...",
+ *   "generatedAt": "2026-01-27T02:46:00Z",
+ *   "ui": { "passed": 10, "failed": 2, "broken": 1, "skipped": 0, "unknown": 0, "total": 13 },
+ *   "db": { "passed": 8, "failed": 0, "broken": 0, "skipped": 1, "unknown": 0, "total": 9 }
  * }
  *
  * No external deps: tiny JSON parser/writer included.
  */
 public class NestedReportGenerator {
 
-    // Inputs (defaults match your run_all_qa.sh outputs)
-    private static final Path CUCUMBER_DB_JSON = Paths.get(env("CUCUMBER_DB_JSON", "reports/databaseUsage/cucumber.json"));
-    private static final Path CUCUMBER_UI_JSON = Paths.get(env("CUCUMBER_UI_JSON", "reports/formy/cucumber.json"));
-    private static final Path GATLING_GLOBAL_STATS_JSON = Paths.get(env("GATLING_GLOBAL_STATS_JSON", "reports/gatling/latest/js/global_stats.json"));
+    // Inputs (defaults match run layout)
+    private static final Path ALLURE_UI_DIR = Paths.get(env("ALLURE_UI_RESULTS_DIR", "reports/allure-results/formy"));
+    private static final Path ALLURE_DB_DIR = Paths.get(env("ALLURE_DB_RESULTS_DIR", "reports/allure-results/databaseUsage"));
+    private static final String RUN_ID = env("RUN_ID", "");
 
     // Output
     private static final Path OUT = Paths.get(env("NESTED_OUT_JSON", "reports/nested/data.json"));
@@ -38,201 +34,119 @@ public class NestedReportGenerator {
     private static final Charset UTF8 = StandardCharsets.UTF_8;
 
     public static void main(String[] args) throws Exception {
-        Map<String, Object> root = obj(
-                "id", "qa-summary",
-                "name", "QA Summary",
-                "items", new ArrayList<Object>()
-        );
+        StatusCounts ui = countAllureResults("UI", ALLURE_UI_DIR);
+        StatusCounts db = countAllureResults("DB", ALLURE_DB_DIR);
 
-        @SuppressWarnings("unchecked")
-        List<Object> items = (List<Object>) root.get("items");
+        String runId = RUN_ID;
+        if (runId == null || runId.trim().isEmpty()) runId = "unknown";
+        String generatedAt = DateTimeFormatter.ISO_INSTANT.format(Instant.now());
 
-        // Cucumber projects
-        addCucumberProject(items, "databaseUsage", "DB tests", CUCUMBER_DB_JSON);
-        addCucumberProject(items, "formyProject", "UI tests", CUCUMBER_UI_JSON);
+        Map<String, Object> root = readExistingRootOrInit(runId, generatedAt);
+        root.put("runId", runId);
+        root.put("generatedAt", generatedAt);
+        putCounts(root, "ui", ui);
+        putCounts(root, "db", db);
 
-        // Gatling (optional)
-        addGatling(items, "restfulBookerLoad", "Load tests (Gatling)", GATLING_GLOBAL_STATS_JSON);
-
-        // Ensure output dir exists + write
         Files.createDirectories(OUT.getParent());
         writeUtf8(OUT, toJson(root));
 
         System.out.println("✅ Nested report generated: " + OUT.toAbsolutePath());
     }
 
-    private static void addCucumberProject(List<Object> outItems, String projectId, String projectName, Path cucumberJsonPath) {
-        if (!Files.exists(cucumberJsonPath)) {
-            System.out.println("⚠ Cucumber JSON missing, skipping: " + cucumberJsonPath);
-            return;
+    private static StatusCounts countAllureResults(String label, Path dir) {
+        StatusCounts counts = new StatusCounts();
+        if (!Files.exists(dir)) {
+            System.out.println("⚠ Allure results dir missing for " + label + ": " + dir);
+            return counts;
         }
 
+        List<String> samples = new ArrayList<String>();
+        int files = 0;
+
         try {
-            String json = readUtf8(cucumberJsonPath);
-            Object parsed = Json.parse(json);
-
-            if (!(parsed instanceof List)) {
-                System.out.println("⚠ Unexpected cucumber.json root (expected array), skipping: " + cucumberJsonPath);
-                return;
-            }
-
-            @SuppressWarnings("unchecked")
-            List<Object> features = (List<Object>) parsed;
-
-            List<Object> featureItems = new ArrayList<Object>();
-
-            int passed = 0;
-            int failed = 0;
-
-            for (Object f : features) {
-                if (!(f instanceof Map)) continue;
-                @SuppressWarnings("unchecked")
-                Map<String, Object> feature = (Map<String, Object>) f;
-
-                String featureName = str(feature.get("name"), "Unnamed feature");
-                String featureId = projectId + "::" + safeId(featureName);
-
-                List<Object> scenarioItems = new ArrayList<Object>();
-                int fPassed = 0;
-                int fFailed = 0;
-
-                Object elementsObj = feature.get("elements"); // cucumber v6 JSON uses "elements"
-                if (elementsObj instanceof List) {
-                    @SuppressWarnings("unchecked")
-                    List<Object> elements = (List<Object>) elementsObj;
-
-                    for (Object e : elements) {
-                        if (!(e instanceof Map)) continue;
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> scenario = (Map<String, Object>) e;
-
-                        String scenarioName = str(scenario.get("name"), "");
-                        String scenarioId = featureId + "::" + safeId(scenarioName);
-
-                        boolean isFailed = scenarioFailed(scenario);
-                        if (isFailed) {
-                            failed++;
-                            fFailed++;
-                        } else {
-                            passed++;
-                            fPassed++;
+            try (java.util.stream.Stream<Path> stream = Files.walk(dir)) {
+                Iterator<Path> it = stream.iterator();
+                while (it.hasNext()) {
+                    Path p = it.next();
+                    String name = p.getFileName().toString();
+                    if (!name.endsWith("-result.json")) continue;
+                    files++;
+                    try {
+                        Object parsed = Json.parse(readUtf8(p));
+                        if (!(parsed instanceof Map)) {
+                            counts.unknown++;
+                            continue;
                         }
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> m = (Map<String, Object>) parsed;
+                        String status = str(m.get("status"), "").toLowerCase(Locale.ROOT);
+                        if (status.length() == 0) status = "unknown";
+                        if ("passed".equals(status)) counts.passed++;
+                        else if ("failed".equals(status)) counts.failed++;
+                        else if ("broken".equals(status)) counts.broken++;
+                        else if ("skipped".equals(status)) counts.skipped++;
+                        else counts.unknown++;
 
-                        scenarioItems.add(obj(
-                                "id", scenarioId,
-                                "name", scenarioName.length() == 0 ? "(unnamed scenario)" : scenarioName,
-                                "result", obj(
-                                        "passed", isFailed ? 0 : 1,
-                                        "failed", isFailed ? 1 : 0,
-                                        "total", 1
-                                )
-                        ));
+                        if (samples.size() < 2) {
+                            samples.add(status);
+                        }
+                    } catch (Exception ex) {
+                        counts.unknown++;
+                        System.out.println("⚠ Failed to parse Allure result: " + p);
                     }
                 }
-
-                featureItems.add(obj(
-                        "id", featureId,
-                        "name", featureName,
-                        "result", obj(
-                                "passed", fPassed,
-                                "failed", fFailed,
-                                "total", fPassed + fFailed
-                        ),
-                        "items", scenarioItems
-                ));
             }
-
-            outItems.add(obj(
-                    "id", projectId,
-                    "name", projectName,
-                    "result", obj(
-                            "passed", passed,
-                            "failed", failed,
-                            "total", passed + failed
-                    ),
-                    "items", featureItems
-            ));
-
-        } catch (Exception ex) {
-            System.out.println("❌ Failed to process cucumber JSON: " + cucumberJsonPath);
-            ex.printStackTrace(System.out);
+        } catch (IOException ex) {
+            System.out.println("⚠ Failed to walk Allure results: " + dir);
         }
+
+        System.out.println("▶ " + label + " *-result.json count: " + files);
+        if (samples.isEmpty()) {
+            System.out.println("▶ " + label + " sample statuses: <none>");
+        } else {
+            System.out.println("▶ " + label + " sample statuses: " + String.join(", ", samples));
+        }
+
+        return counts;
     }
 
-    private static boolean scenarioFailed(Map<String, Object> scenario) {
-        Object stepsObj = scenario.get("steps");
-        if (!(stepsObj instanceof List)) return false;
-
-        @SuppressWarnings("unchecked")
-        List<Object> steps = (List<Object>) stepsObj;
-
-        for (Object s : steps) {
-            if (!(s instanceof Map)) continue;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> step = (Map<String, Object>) s;
-
-            Object resultObj = step.get("result");
-            if (!(resultObj instanceof Map)) continue;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> result = (Map<String, Object>) resultObj;
-
-            String status = str(result.get("status"), "");
-            if ("failed".equalsIgnoreCase(status)) return true;
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> readExistingRootOrInit(String runId, String generatedAt) {
+        if (Files.exists(OUT)) {
+            try {
+                Object parsed = Json.parse(readUtf8(OUT));
+                if (parsed instanceof Map) {
+                    return (Map<String, Object>) parsed;
+                }
+            } catch (Exception ex) {
+                System.out.println("⚠ Failed to parse existing nested JSON, regenerating: " + OUT);
+            }
         }
-        return false;
+        Map<String, Object> root = obj(
+                "runId", runId,
+                "generatedAt", generatedAt,
+                "ui", obj(),
+                "db", obj()
+        );
+        return root;
     }
 
-    private static void addGatling(List<Object> outItems, String id, String name, Path globalStatsJsonPath) {
-        if (!Files.exists(globalStatsJsonPath)) {
-            System.out.println("⚠ Gatling global_stats.json missing, skipping: " + globalStatsJsonPath);
-            return;
+    @SuppressWarnings("unchecked")
+    private static void putCounts(Map<String, Object> root, String key, StatusCounts counts) {
+        Object existing = root.get(key);
+        Map<String, Object> target;
+        if (existing instanceof Map) {
+            target = (Map<String, Object>) existing;
+        } else {
+            target = obj();
+            root.put(key, target);
         }
-
-        try {
-            String json = readUtf8(globalStatsJsonPath);
-            Object parsed = Json.parse(json);
-            if (!(parsed instanceof Map)) return;
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> root = (Map<String, Object>) parsed;
-
-            Object statsObj = root.get("stats");
-            if (!(statsObj instanceof Map)) return;
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> stats = (Map<String, Object>) statsObj;
-
-            int total = intPath(stats, "numberOfRequests", "total");
-            int ok = intPath(stats, "numberOfRequests", "ok");
-            int ko = intPath(stats, "numberOfRequests", "ko");
-
-            outItems.add(obj(
-                    "id", "gatling::" + id,
-                    "name", name,
-                    "result", obj(
-                            "totalRequests", total,
-                            "ok", ok,
-                            "ko", ko
-                    )
-            ));
-
-        } catch (Exception ex) {
-            System.out.println("⚠ Failed to parse Gatling stats, skipping: " + globalStatsJsonPath);
-            ex.printStackTrace(System.out);
-        }
-    }
-
-    private static int intPath(Map<String, Object> obj, String key1, String key2) {
-        Object level1 = obj.get(key1);
-        if (!(level1 instanceof Map)) return 0;
-        @SuppressWarnings("unchecked")
-        Map<String, Object> m1 = (Map<String, Object>) level1;
-        Object v = m1.get(key2);
-        if (v instanceof Number) return ((Number) v).intValue();
-        if (v instanceof String) {
-            try { return Integer.parseInt((String) v); } catch (Exception ignored) {}
-        }
-        return 0;
+        target.put("passed", counts.passed);
+        target.put("failed", counts.failed);
+        target.put("broken", counts.broken);
+        target.put("skipped", counts.skipped);
+        target.put("unknown", counts.unknown);
+        target.put("total", counts.total());
     }
 
     // -----------------------------
@@ -343,7 +257,7 @@ public class NestedReportGenerator {
     }
 
     // -----------------------------
-    // Tiny JSON parser (enough for Cucumber + Gatling)
+    // Tiny JSON parser (enough for Allure results)
     // -----------------------------
     private static final class Json {
         static Object parse(String s) {
@@ -498,6 +412,18 @@ public class NestedReportGenerator {
             RuntimeException err(String msg) {
                 return new RuntimeException(msg + " at pos " + i);
             }
+        }
+    }
+
+    private static final class StatusCounts {
+        int passed = 0;
+        int failed = 0;
+        int broken = 0;
+        int skipped = 0;
+        int unknown = 0;
+
+        int total() {
+            return passed + failed + broken + skipped + unknown;
         }
     }
 }

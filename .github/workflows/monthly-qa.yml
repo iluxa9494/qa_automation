@@ -1,4 +1,4 @@
-# /Users/ilia/IdeaProjects/pet_projects/qa_automation/.github/workflows/monthly-qa.yml
+# .github/workflows/monthly-qa.yml
 name: Monthly QA Run
 
 on:
@@ -8,10 +8,15 @@ on:
 
 permissions: write-all
 
+# ✅ очередь на уровне GitHub Actions — не даст запускать несколько QA-run одновременно
+concurrency:
+  group: qa_automation-monthly
+  cancel-in-progress: true
+
 jobs:
   qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 90
 
     env:
       QA_AUTOMATION_IMAGE: ghcr.io/${{ github.repository_owner }}/qa_automation:latest
@@ -41,47 +46,45 @@ jobs:
         run: |
           set -euo pipefail
           echo "▶ Using image: $QA_AUTOMATION_IMAGE"
-          docker compose -f docker-compose.ci.yml pull || true
+          # Pull only when missing to avoid repeated layer downloads
+          if ! docker image inspect "$QA_AUTOMATION_IMAGE" >/dev/null 2>&1; then
+            docker pull "$QA_AUTOMATION_IMAGE"
+          else
+            echo "✔ QA image already present"
+          fi
+          if ! docker image inspect "mysql:8.0" >/dev/null 2>&1; then
+            docker pull mysql:8.0
+          fi
+          if ! docker image inspect "mongo:6" >/dev/null 2>&1; then
+            docker pull mongo:6
+          fi
 
-      # ✅ TEMP DEBUG: after pull / before run
-      - name: Debug QA image contents (tmp)
+      - name: Debug QA image (gatling/allure hints)
         run: |
           set -euo pipefail
           echo "▶ Debugging image: $QA_AUTOMATION_IMAGE"
-          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -c '
-            set -ex
-
-            echo "== whoami/id =="
-            whoami || true
-            id || true
+          docker run --rm --entrypoint sh "$QA_AUTOMATION_IMAGE" -lc '
+            set -e
 
             echo "== java =="
             java -version || true
 
-            echo "== env (safe) =="
-            echo "CLASSPATH=${CLASSPATH-<empty>}"
-            echo "JAVA_HOME=${JAVA_HOME-<empty>}"
-            echo "PATH=$PATH"
+            echo "== gatling presence =="
+            command -v gatling.sh || true
+            ls -la /opt/gatling 2>/dev/null || true
 
-            echo "== entrypoint presence =="
-            ls -la /entrypoint.sh 2>/dev/null || true
-            echo "--- head /entrypoint.sh ---"
-            head -n 200 /entrypoint.sh 2>/dev/null || true
-
-            echo "== filesystem hints =="
-            ls -la /  || true
-            ls -la /app 2>/dev/null || true
-            ls -la /work 2>/dev/null || true
-            ls -la /opt 2>/dev/null || true
-
-            echo "== find junit/gatling jars (first 200) =="
-            find / -maxdepth 8 -type f \
-              \( -iname "*junit*.jar" -o -iname "*hamcrest*.jar" -o -iname "*gatling*.jar" -o -iname "*scala*.jar" -o -iname "*.jar" \) \
-              2>/dev/null | head -n 200
+            echo "== jars quick-scan (first 50) =="
+            if command -v find >/dev/null 2>&1; then
+              find / -maxdepth 6 -type f \( -name "*.jar" -o -name "gatling.sh" \) 2>/dev/null | head -n 50
+            else
+              echo "find not available in image"
+              ls -la /  || true
+            fi
           '
 
       - name: Run all QA tests (docker compose)
         id: run_qa
+        timeout-minutes: 60
         run: |
           set -euo pipefail
 
@@ -91,7 +94,10 @@ jobs:
 
           echo "▶ Running qa_automation..."
           set +e
-          docker compose -f docker-compose.ci.yml up \
+          # Hard timeout to avoid multi-hour hangs on retries/timeouts inside suites.
+          # 75m keeps us under the job timeout (90m) but avoids cutting off report generation.
+          timeout 75m docker compose -f docker-compose.ci.yml up \
+            --pull never \
             --no-deps \
             --abort-on-container-exit \
             --exit-code-from qa_automation \
@@ -104,23 +110,51 @@ jobs:
 
           echo "▶ Reports on host:"
           ls -la reports || true
+          du -ah reports | head -n 50 || true
 
           echo "▶ Cleanup..."
           docker compose -f docker-compose.ci.yml down --remove-orphans || true
 
-          # Check if reports exist at all
-          if [[ ! -f reports/formy/cucumber.json && ! -f reports/databaseUsage/cucumber.json && ! -f reports/gatling/latest/index.html && ! -f reports/index.html ]]; then
-            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
-            echo "❌ No reports generated at all"
-          else
-            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
-            echo "✔ Reports exist"
+          # --- Robust reports detection ---
+          has_any_reports=0
+
+          # 1) Allure results (preferred contract for VPS generation)
+          if [[ -d reports/allure-results ]]; then
+            if find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
+              has_any_reports=1
+            fi
           fi
 
-          # ✅ Allure contract: reports/allure-results must exist and be non-empty
+          # 2) Allure HTML (optional, if generated in CI)
+          if [[ -f reports/allure-report/index.html ]]; then
+            has_any_reports=1
+          fi
+
+          # 3) Web/API suite artifacts (any file)
+          if find reports/formy -type f -print -quit >/dev/null 2>&1; then
+            has_any_reports=1
+          fi
+          if find reports/databaseUsage -type f -print -quit >/dev/null 2>&1; then
+            has_any_reports=1
+          fi
+
+          # 4) Gatling HTML (if load succeeded)
+          if [[ -f reports/gatling/latest/index.html ]]; then
+            has_any_reports=1
+          fi
+
+          if [[ "$has_any_reports" == "1" ]]; then
+            echo "NO_REPORTS=0" >> "$GITHUB_ENV"
+            echo "✔ Reports exist"
+          else
+            echo "NO_REPORTS=1" >> "$GITHUB_ENV"
+            echo "❌ No reports generated at all"
+          fi
+
+          # --- Contract: allure-results must exist and be non-empty ---
           if [[ ! -d reports/allure-results ]]; then
             echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
-            echo "❌ Missing reports/allure-results (Allure results are required for Jenkins Allure plugin)"
+            echo "❌ Missing reports/allure-results (required for VPS Allure generation)"
           else
             if ! find reports/allure-results -type f -print -quit >/dev/null 2>&1; then
               echo "ALLURE_EMPTY=1" >> "$GITHUB_ENV"
@@ -134,7 +168,234 @@ jobs:
           # IMPORTANT: do NOT fail here, we must sync reports to VPS anyway
           exit 0
 
-      - name: Sync reports to VPS (versioned + publish latest)
+      - name: Sanitize gatling symlinks (avoid ELOOP)
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -d reports/gatling ]]; then
+            find reports/gatling -type l -print -delete || true
+          fi
+
+      - name: Generate Allure HTML (fallback)
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+          if [[ -d reports/allure-results ]]; then
+            if [[ ! -f reports/allure-report/index.html ]]; then
+              echo "▶ Allure HTML missing; generating via container..."
+              mkdir -p reports/allure-report
+              docker run --rm -v "$PWD/reports:/reports" "$QA_AUTOMATION_IMAGE" bash -lc '
+                set -euo pipefail
+                allure generate /reports/allure-results/formy /reports/allure-results/databaseUsage -o /reports/allure-report --clean
+              '
+            else
+              echo "✔ Allure HTML already exists"
+            fi
+          else
+            echo "⚠️ reports/allure-results missing; cannot generate Allure HTML"
+          fi
+
+      - name: Materialize versioned reports layout
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+
+          RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+          RUN_DIR="reports/runs/${RUN_ID}"
+          mkdir -p "$RUN_DIR"
+
+          for d in formy databaseUsage gatling allure-results allure-report nested; do
+            if [[ -d "reports/$d" ]]; then
+              cp -a "reports/$d" "$RUN_DIR/"
+            fi
+          done
+          if [[ -f reports/index.html ]]; then
+            cp -a reports/index.html "$RUN_DIR/"
+          fi
+
+          printf '%s' "$RUN_ID" > reports/LATEST
+          ln -sfn "runs/$RUN_ID" reports/current
+
+          # Ensure gatling/latest exists in both root and run folder
+          if [[ -d "reports/gatling" ]]; then
+            latest_dir="$(
+              find "reports/gatling" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\n' 2>/dev/null \
+                | sort -nr | head -n 1 | awk '{ $1=""; sub(/^ /,""); print }'
+            )"
+            if [[ -n "${latest_dir:-}" ]]; then
+              rm -rf "reports/gatling/latest" || true
+              cp -a "${latest_dir%/}" "reports/gatling/latest"
+              rm -rf "${RUN_DIR}/gatling/latest" || true
+              cp -a "${latest_dir%/}" "${RUN_DIR}/gatling/latest"
+              echo "✔ Gatling latest resolved: ${latest_dir}"
+            else
+              echo "⚠️  Gatling report not found under reports/gatling"
+              echo "▶ reports/gatling listing:"
+              ls -la "reports/gatling" || true
+            fi
+          fi
+
+          echo "▶ reports listing:"
+          ls -la reports
+          echo "▶ reports/runs/$RUN_ID listing:"
+          ls -la "reports/runs/$RUN_ID"
+
+      - name: Verify Gatling simulation log (REQUEST lines)
+        if: always() && env.NO_REPORTS == '0'
+        run: |
+          set -euo pipefail
+          # Non-fatal diagnostics: warn + set flag if Gatling log is empty/missing/has no REQUEST.
+          # Also skip verification on QA timeout (QA_RC=124) or when Gatling did not run.
+          if [[ "${QA_RC:-0}" == "124" ]]; then
+            echo "::warning::QA timed out (QA_RC=124); skipping Gatling verification"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "▶ reports/current/gatling files (maxdepth 3):"
+          find reports/current/gatling -maxdepth 3 -type f -print || true
+          echo "▶ reports/current/gatling listing:"
+          ls -lah reports/current/gatling || true
+          sim_log="$(find reports/current/gatling -type f -name simulation.log -print -quit 2>/dev/null || true)"
+          gatling_index="$(find reports/current/gatling -type f -name index.html -print -quit 2>/dev/null || true)"
+          gatling_dir=""
+          if [[ -n "${gatling_index}" ]]; then
+            gatling_dir="$(dirname "$gatling_index")"
+          fi
+          if [[ -z "${sim_log}" ]]; then
+            echo "::warning::Gatling simulation.log not found under reports/current/gatling (Gatling may be missing or not run)"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.ci.yml ps || true
+              # Best-effort: show logs for QA container (may include Gatling output)
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
+            fi
+            exit 0
+          fi
+          if [[ ! -s "$sim_log" ]]; then
+            echo "::warning::Gatling simulation.log is empty: ${sim_log}"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            ls -lah "$sim_log" || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
+            fi
+            exit 0
+          fi
+          echo "▶ simulation.log head (200 lines):"
+          head -n 200 "$sim_log" || true
+          echo "▶ simulation.log version hints:"
+          grep -m1 -E "Gatling|version|Version" "$sim_log" || true
+
+          if ! grep -q "REQUEST" "$sim_log"; then
+            echo "::warning::No REQUEST lines found in ${sim_log}"
+            echo "GATLING_HAS_REQUESTS=false" >> "$GITHUB_ENV"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            ls -lah reports/current/gatling || true
+            ls -lah "$sim_log" || true
+            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.ci.yml ps || true
+              docker compose -f docker-compose.ci.yml logs --tail=200 qa_automation || true
+            fi
+            exit 0
+          fi
+          echo "GATLING_HAS_REQUESTS=true" >> "$GITHUB_ENV"
+          if [[ -n "${gatling_dir}" ]]; then
+            echo "▶ Gatling report dir: ${gatling_dir}"
+            ls -lah "${gatling_dir}" || true
+            if [[ -s "${gatling_dir}/js/stats.json" ]]; then
+              echo "GATLING_OK=true" >> "$GITHUB_ENV"
+              echo "✔ Gatling report looks valid (index.html + js/stats.json)"
+            else
+              echo "::warning::Gatling report missing/empty js/stats.json under ${gatling_dir}"
+              echo "GATLING_OK=false" >> "$GITHUB_ENV"
+            fi
+          else
+            echo "::warning::Gatling index.html not found under reports/current/gatling"
+            echo "GATLING_OK=false" >> "$GITHUB_ENV"
+          fi
+      - name: Upload reports artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-reports
+          path: reports
+          if-no-files-found: warn
+
+      - name: Debug nested data.json (CI)
+        if: always()
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f reports/LATEST ]]; then
+            echo "⚠ reports/LATEST not found; skipping nested debug"
+            exit 0
+          fi
+
+          RUN_ID="$(cat reports/LATEST)"
+          echo "▶ RUN_ID=$RUN_ID"
+
+          UI_DIR="reports/runs/${RUN_ID}/allure-results/formy"
+          DB_DIR="reports/runs/${RUN_ID}/allure-results/databaseUsage"
+          NESTED_JSON="reports/runs/${RUN_ID}/nested/data.json"
+
+          UI_COUNT="$(find "$UI_DIR" -type f -name "*-result.json" 2>/dev/null | wc -l | tr -d ' ')"
+          DB_COUNT="$(find "$DB_DIR" -type f -name "*-result.json" 2>/dev/null | wc -l | tr -d ' ')"
+          echo "▶ UI *-result.json count: $UI_COUNT"
+          echo "▶ DB *-result.json count: $DB_COUNT"
+
+          echo "▶ Sample statuses:"
+          find "$UI_DIR" -type f -name "*-result.json" 2>/dev/null | head -n 1 | while read -r f; do
+            status="$(jq -r '.status // "unknown"' "$f")"
+            echo " - UI: $status"
+          done
+          find "$DB_DIR" -type f -name "*-result.json" 2>/dev/null | head -n 1 | while read -r f; do
+            status="$(jq -r '.status // "unknown"' "$f")"
+            echo " - DB: $status"
+          done
+
+          if [[ -f "$NESTED_JSON" ]]; then
+            echo "▶ generatedAt: $(jq -r '.generatedAt' "$NESTED_JSON")"
+            echo "▶ ui: $(jq -c '.ui' "$NESTED_JSON")"
+            echo "▶ db: $(jq -c '.db' "$NESTED_JSON")"
+          else
+            echo "❌ Missing $NESTED_JSON"
+            exit 2
+          fi
+
+      - name: Verify Allure report (CI)
+        run: |
+          set -euo pipefail
+          # Non-fatal: Allure report may be missing in CI; warn and continue.
+          if [[ ! -f reports/current/allure-report/index.html ]] \
+            || [[ ! -f reports/current/allure-report/widgets/summary.json ]] \
+            || [[ ! -f reports/current/allure-report/data/suites.json ]] \
+            || [[ ! -d reports/current/allure-report/data/test-cases ]]; then
+            echo "::warning::Allure report incomplete/missing under reports/current/allure-report; skipping strict verification"
+            echo "ALLURE_REPORT_OK=false" >> "$GITHUB_ENV"
+            echo "▶ Allure report tree (top-level):"
+            ls -la reports/current/allure-report || true
+            echo "▶ Allure report data/:"
+            ls -la reports/current/allure-report/data || true
+            echo "▶ Allure report widgets/:"
+            ls -la reports/current/allure-report/widgets || true
+            exit 0
+          fi
+          if ! find reports/current/allure-report/data/test-cases -type f -name "*.json" -print -quit >/dev/null 2>&1; then
+            echo "::warning::Missing reports/current/allure-report/data/test-cases/*.json; skipping strict verification"
+            echo "ALLURE_REPORT_OK=false" >> "$GITHUB_ENV"
+            echo "▶ Allure report data/test-cases/:"
+            ls -la reports/current/allure-report/data/test-cases || true
+            exit 0
+          fi
+          echo "ALLURE_REPORT_OK=true" >> "$GITHUB_ENV"
+
+      - name: Sync reports to VPS (versioned + atomic latest pointers)
         if: always() && env.NO_REPORTS == '0'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
@@ -148,9 +409,64 @@ jobs:
             exit 1
           fi
 
-          RUN_ID="$(date -u +'%Y-%m-%d_%H-%M-%S')"
+          if [[ ! -f reports/LATEST ]]; then
+            echo "⚠ reports/LATEST not found; skipping VPS sync"
+            exit 0
+          fi
+
+          RUN_ID="$(cat reports/LATEST)"
           echo "RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           echo "▶ RUN_ID=$RUN_ID"
+
+          SRC_RUN="reports/runs/${RUN_ID}"
+          if [[ ! -d "$SRC_RUN" ]]; then
+            echo "❌ Missing local run folder: $SRC_RUN"
+            exit 2
+          fi
+
+          SKIP_ALLURE=0
+          SKIP_GATLING=0
+          if [[ ! -d "$SRC_RUN/allure-report" ]]; then
+            echo "⚠ Allure report dir missing; skipping Allure sync"
+            echo "▶ Expected under $SRC_RUN/allure-report: index.html, widgets/summary.json, data/suites.json, data/test-cases/"
+            echo "▶ Tree ($SRC_RUN):"
+            find "$SRC_RUN" -maxdepth 3 -print || true
+            SKIP_ALLURE=1
+          else
+            if [[ ! -f "$SRC_RUN/allure-report/index.html" ]] \
+              || [[ ! -f "$SRC_RUN/allure-report/widgets/summary.json" ]] \
+              || [[ ! -f "$SRC_RUN/allure-report/data/suites.json" ]] \
+              || [[ ! -d "$SRC_RUN/allure-report/data/test-cases" ]]; then
+              echo "⚠ Allure report incomplete; skipping Allure sync"
+              echo "▶ Expected under $SRC_RUN/allure-report: index.html, widgets/summary.json, data/suites.json, data/test-cases/"
+              echo "▶ Tree ($SRC_RUN/allure-report):"
+              find "$SRC_RUN/allure-report" -maxdepth 3 -print || true
+              SKIP_ALLURE=1
+            fi
+          fi
+
+          if [[ ! -d "$SRC_RUN/gatling" ]]; then
+            echo "⚠ Gatling report dir missing; skipping Gatling validation"
+            SKIP_GATLING=1
+          fi
+
+          include_dirs=()
+          for d in formy databaseUsage gatling allure-results nested; do
+            if [[ -d "$SRC_RUN/$d" ]]; then
+              include_dirs+=("$d")
+            fi
+          done
+          if [[ "$SKIP_ALLURE" -eq 0 ]] && [[ -d "$SRC_RUN/allure-report" ]]; then
+            include_dirs+=("allure-report")
+          fi
+          if [[ "${#include_dirs[@]}" -eq 0 ]]; then
+            echo "❌ No report directories to upload from $SRC_RUN"
+            exit 4
+          fi
+
+          # Always update LATEST/current pointers even if some reports are missing.
+          # Individual report symlinks are updated only when the report exists.
+          PUBLISH_OK=1
 
           echo "$VPS_SSH_KEY" > /tmp/vps_key
           chmod 600 /tmp/vps_key
@@ -158,40 +474,125 @@ jobs:
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
             "mkdir -p /home/pet_projects/qa_automation/reports/runs/$RUN_ID"
 
-          # Upload everything (includes allure-results if present)
-          scp -i /tmp/vps_key -o StrictHostKeyChecking=no -r \
-            reports/* "$VPS_USER@$VPS_HOST:/home/pet_projects/qa_automation/reports/runs/$RUN_ID/"
-
+          echo "▶ Uploading reports via tar over SSH (no rsync dependency)..."
+          # Follow symlinks to avoid uploading only link stubs
+          tar -C "$SRC_RUN" -czf /tmp/reports_run.tgz --dereference "${include_dirs[@]}"
+          echo "▶ tar content (head):"
+          tar -tzf /tmp/reports_run.tgz | head -n 50 || true
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" \
-            "echo $RUN_ID > /home/pet_projects/qa_automation/reports/LATEST"
+            "tar -C /home/pet_projects/qa_automation/reports/runs/${RUN_ID} -xzf -" < /tmp/reports_run.tgz
+          rm -f /tmp/reports_run.tgz
 
-          # ✅ Publish latest run to BASE root (NO symlinks; python http.server friendly)
           ssh -i /tmp/vps_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
+
             BASE=/home/pet_projects/qa_automation/reports
-            RUN_ID=\$(cat \"\$BASE/LATEST\")
+            RUN_ID='$RUN_ID'
+            PUBLISH_OK='$PUBLISH_OK'
+
+            atomic_write() {
+              local path=\"\$1\"
+              local content=\"\$2\"
+              local tmp
+              tmp=\$(mktemp \"\${path}.tmp.XXXXXX\")
+              printf '%s' \"\$content\" > \"\$tmp\"
+              mv -f \"\$tmp\" \"\$path\"
+            }
+
+            atomic_link() {
+              local target=\"\$1\"
+              local linkpath=\"\$2\"
+              ln -sfn \"\$target\" \"\$linkpath\"
+            }
+
             SRC=\"\$BASE/runs/\$RUN_ID\"
+            if [ ! -d \"\$SRC\" ]; then
+              echo \"❌ Missing uploaded run folder: \$SRC\"
+              exit 2
+            fi
 
-            rm -rf \"\$BASE/formy\" \"\$BASE/databaseUsage\" \"\$BASE/gatling\" \"\$BASE/nested\" \"\$BASE/allure-results\" || true
-            rm -f \"\$BASE/index.html\" || true
+            HAS_ALLURE=1
+            if [ ! -d \"\$SRC/allure-report\" ] \
+              || [ ! -f \"\$SRC/allure-report/index.html\" ] \
+              || [ ! -f \"\$SRC/allure-report/widgets/summary.json\" ] \
+              || [ ! -f \"\$SRC/allure-report/data/suites.json\" ] \
+              || [ ! -d \"\$SRC/allure-report/data/test-cases\" ]; then
+              echo \"⚠ Allure report missing/incomplete under \$SRC/allure-report; skipping Allure pointers\"
+              echo \"▶ Expected: index.html, widgets/summary.json, data/suites.json, data/test-cases/\"
+              find \"\$SRC\" -maxdepth 3 -print || true
+              HAS_ALLURE=0
+            elif ! find \"\$SRC/allure-report/data/test-cases\" -type f -name \"*.json\" -print -quit >/dev/null 2>&1; then
+              echo \"⚠ Allure report test-cases JSON files missing under \$SRC/allure-report/data/test-cases; skipping Allure pointers\"
+              find \"\$SRC/allure-report/data/test-cases\" -maxdepth 2 -print || true
+              HAS_ALLURE=0
+            fi
 
-            cp -a \"\$SRC/index.html\" \"\$BASE/index.html\"
-            cp -a \"\$SRC/formy\" \"\$BASE/formy\"
-            cp -a \"\$SRC/databaseUsage\" \"\$BASE/databaseUsage\"
-            cp -a \"\$SRC/gatling\" \"\$BASE/gatling\"
-            [ -d \"\$SRC/nested\" ] && cp -a \"\$SRC/nested\" \"\$BASE/nested\" || true
-            [ -d \"\$SRC/allure-results\" ] && cp -a \"\$SRC/allure-results\" \"\$BASE/allure-results\" || true
+            HAS_GATLING=0
+            gatling_index=\$(find \"\$SRC/gatling\" -type f -name index.html -print -quit 2>/dev/null || true)
+            if [ -n \"\$gatling_index\" ]; then
+              gatling_dir=\$(dirname \"\$gatling_index\")
+              if [ -s \"\$gatling_dir/js/stats.json\" ]; then
+                HAS_GATLING=1
+              else
+                echo \"⚠ Gatling report missing/empty js/stats.json under \$gatling_dir\"
+              fi
+            else
+              echo \"⚠ Gatling index.html not found under \$SRC/gatling\"
+            fi
 
-            # Fix links to be BASE-root friendly
-            sed -i 's#reports/##g' \"\$BASE/index.html\" || true
-            sed -i 's#formy/cucumber-html-report/index.html#formy/cucumber.html#g' \"\$BASE/index.html\" || true
+            # Ensure gatling/latest exists inside run
+            if [ -d \"\$SRC/gatling\" ] && [ ! -d \"\$SRC/gatling/latest\" ]; then
+              latest_dir=\$(
+                find \"\$SRC/gatling\" -mindepth 2 -maxdepth 2 -type f -name index.html -printf '%T@ %h\\n' 2>/dev/null \
+                  | sort -nr | head -n 1 | awk '{ \$1=\"\"; sub(/^ /,\"\"); print }'
+              )
+              if [ -n \"\$latest_dir\" ]; then
+                rm -rf \"\$SRC/gatling/latest\" || true
+                cp -a \"\$latest_dir\" \"\$SRC/gatling/latest\"
+                echo \"✔ Gatling latest resolved: \$latest_dir\"
+              else
+                echo \"⚠️  Gatling report not found under \$SRC/gatling\"
+              fi
+            fi
 
-            chmod -R a+rX \"\$BASE\" || true
-            echo \"✅ Published \$RUN_ID\"
+            atomic_write \"\$BASE/LATEST\" \"\$RUN_ID\"
+            atomic_link \"runs/\$RUN_ID\" \"\$BASE/current\"
+
+            # Root view for dashboard server
+            atomic_link \"current/index.html\"        \"\$BASE/index.html\"
+            atomic_link \"current/formy\"             \"\$BASE/formy\"
+            atomic_link \"current/databaseUsage\"     \"\$BASE/databaseUsage\"
+            atomic_link \"current/gatling\"           \"\$BASE/gatling\"
+            atomic_link \"current/allure-results\"    \"\$BASE/allure-results\"
+            if [ \"\$HAS_ALLURE\" = \"1\" ]; then
+              atomic_link \"current/allure-report\"     \"\$BASE/allure-report\"
+            fi
+            atomic_link \"current/nested\"            \"\$BASE/nested\"
+
+            CONTAINER_UID=1200
+            CONTAINER_GID=1201
+            # Apply perms only to the new run directory to avoid heavy recursive ops on the whole reports tree
+            TARGET_RUN=\"\$BASE/runs/\$RUN_ID\"
+            chown -R \"\$CONTAINER_UID:\$CONTAINER_GID\" \"\$TARGET_RUN\" || true
+            find \"\$TARGET_RUN\" -type d -exec chmod 2775 {} \; || true
+            find \"\$TARGET_RUN\" -type f -exec chmod 664  {} \; || true
+
+            if command -v setfacl >/dev/null 2>&1; then
+              setfacl -R -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$TARGET_RUN\" || true
+              setfacl -R -d -m \"u:\$CONTAINER_UID:rwx,g:\$CONTAINER_GID:rwx\" \"\$TARGET_RUN\" || true
+            fi
+
+            echo \"✅ Published pointers for \$RUN_ID\"
+
+            echo \"▶ Post-sync quick size check:\"
+            du -sh \"\$BASE/runs/\$RUN_ID/allure-report\" \"\$BASE/runs/\$RUN_ID/gatling/latest\" 2>/dev/null || true
+            if [ -f \"\$BASE/runs/\$RUN_ID/gatling/latest/js/stats.json\" ]; then
+              echo \"✔ Gatling stats.json present\"
+            else
+              echo \"⚠ Gatling stats.json missing\"
+            fi
           "
 
-      # ✅ Result: workflow does NOT fail when tests fail.
-      #    It fails ONLY if pipeline is broken (no reports / no allure-results).
       - name: Finalize (do not fail on test failures)
         if: always()
         run: |

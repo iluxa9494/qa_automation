@@ -1,21 +1,28 @@
+# docker-compose.ci.yml
 services:
   mysql:
     image: mysql:8.0
+    pull_policy: if_not_present
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: qa
-      MYSQL_USER: qa
-      MYSQL_PASSWORD: qa
+      MYSQL_DATABASE: test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: test
     ports:
       - "3306:3306"
+    volumes:
+      - ./databaseUsage/src/test/resources/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"]
       interval: 5s
       timeout: 3s
       retries: 30
+    # ✅ чуть ограничим, чтобы не выедал весь раннер
+    mem_limit: 1g
 
   mongodb:
     image: mongo:6
+    pull_policy: if_not_present
     ports:
       - "27017:27017"
     healthcheck:
@@ -23,13 +30,30 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+    mem_limit: 768m
 
   qa_automation:
     image: ${QA_AUTOMATION_IMAGE:-ghcr.io/iluxa9494/qa_automation:latest}
+    pull_policy: if_not_present
+    shm_size: "1g" # ✅ важно для headless chrome, чтобы не умирал/не ел лишнее
     environment:
+      CI: "true"
       REPORTS_DIR: /reports
-      # (optional) makes it explicit for debugging/consistency
       ALLURE_RESULTS_DIR: /reports/allure-results
+      # ✅ лимитируем JVM (общий для java в контейнере)
+      JAVA_TOOL_OPTIONS: "-Xms256m -Xmx1024m -XX:MaxMetaspaceSize=256m"
+      # ✅ CI: базы живут как сервисы docker-compose (не localhost)
+      MONGO_URI: "mongodb://mongodb:27017"
+      MYSQL_URL: "jdbc:mysql://mysql:3306/test"
+      MYSQL_USER: "test"
+      MYSQL_PASS: "test"
+      MYSQL_PASSWORD: "test"
+      # ✅ CI-safe параметры Gatling (переопределят дефолты, если захочешь)
+      GATLING_CI_USERS_PER_SEC: "5"
+      GATLING_CI_DURATION_SEC: "30"
+      GATLING_CI_PAUSE_MS: "300"
+      RB_AUTH_USERNAME: "${RB_AUTH_USERNAME:-admin}"
+      RB_AUTH_PASSWORD: "${RB_AUTH_PASSWORD:-password123}"
     volumes:
       - ./reports:/reports
     command: ["/entrypoint.sh"]
@@ -38,3 +62,4 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+    mem_limit: 2g

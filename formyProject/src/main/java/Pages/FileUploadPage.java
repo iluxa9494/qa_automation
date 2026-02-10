@@ -11,22 +11,33 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class FileUploadPage {
-    WebDriver driver;
-    AutocompletePage autocompletePage = PageFactory.initElements(driver, AutocompletePage.class);
+    private final WebDriver driver;
+    private final AutocompletePage autocompletePage;
     @FindBy(xpath = "//button[text()='Choose']")
-    public static WebElement chooseButton;
+    private WebElement chooseButton;
     @FindBy(xpath = "//button[text()='Reset']")
-    public static WebElement resetButton;
+    private WebElement resetButton;
     @FindBy(id = "file-upload-field")
-    public static WebElement fileUploadField;
+    private WebElement fileUploadField;
     @FindBy(xpath = "//h1[text()='File upload']")
-    public static WebElement title;
+    private WebElement title;
 
     public FileUploadPage(WebDriver driver) {
         this.driver = driver;
+        PageFactory.initElements(driver, this);
+        this.autocompletePage = new AutocompletePage(driver);
+    }
+
+    private boolean isScreenshotsEnabled() {
+        String v = System.getProperty("formy.screenshots", "1");
+        return !("0".equals(v) || "false".equalsIgnoreCase(v));
     }
 
     public void makeScreenshot() {
+        if (!isScreenshotsEnabled()) {
+            return;
+        }
+
         String arg1 = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss").format(new Date());
         try {
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
